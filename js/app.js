@@ -224,11 +224,11 @@ async function loadDataFromSupabase() {
 
     state.events = (evRes.data || []).map(e => ({
       id: e.id, title: e.title, date: e.date, time: e.time,
-      type: e.type, petId: e.pet_id, notes: e.notes }));
+      type: e.type, petId: e.pet_id, pet: state.pets.find(p => p.id === e.pet_id)?.name || null, notes: e.notes }));
 
     state.expenses = (expRes.data || []).map(e => ({
-      id: e.id, petId: e.pet_id, date: e.date, category: e.category,
-      amount: e.amount, description: e.description }));
+      id: e.id, petId: e.pet_id, pet: state.pets.find(p => p.id === e.pet_id)?.name || null,
+      date: e.date, category: e.category, amount: e.amount, description: e.description }));
 
     // store botiquin separately (not inside pet objects)
     state.botiquin = (botRes.data || []).map(b => ({
@@ -1784,12 +1784,37 @@ function viewCalendar() {
   `);
 }
 
+// El campo "Costo (CLP)" de vacunas, desparasitaciones, tratamientos e historial
+// clínico vive solo en esas tablas — nunca se refleja en Finanzas por sí solo,
+// que hasta ahora solo mostraba lo cargado manualmente con "Registrar gasto".
+// Esta función junta ambas fuentes para que un costo cargado desde la ficha de
+// la mascota también cuente en el total y aparezca en el listado.
+function getFinanceExpenses() {
+  const manual = (state.expenses || []).map(e => ({ ...e, source: 'manual' }));
+  const synth = [];
+  (state.pets || []).forEach(pet => {
+    (pet.vaccines || []).forEach(v => { if (Number(v.cost) > 0) synth.push({
+      id: 'vac-'+v.id, petId: pet.id, pet: pet.name, date: v.date, category: 'Veterinaria',
+      amount: v.cost, description: `Vacuna: ${v.name}`, source: 'vaccine' }); });
+    (pet.deworming || []).forEach(d => { if (Number(d.cost) > 0) synth.push({
+      id: 'dew-'+d.id, petId: pet.id, pet: pet.name, date: d.date, category: 'Veterinaria',
+      amount: d.cost, description: `Desparasitación: ${d.product}`, source: 'deworming' }); });
+    (pet.medications || []).forEach(m => { if (Number(m.cost) > 0) synth.push({
+      id: 'med-'+m.id, petId: pet.id, pet: pet.name, date: m.startDate, category: 'Medicamentos',
+      amount: m.cost, description: `Tratamiento: ${m.name}`, source: 'medication' }); });
+    (pet.clinicalHistory || []).forEach(h => { if (Number(h.cost) > 0) synth.push({
+      id: 'his-'+h.id, petId: pet.id, pet: pet.name, date: h.date, category: 'Veterinaria',
+      amount: h.cost, description: h.title, source: 'history' }); });
+  });
+  return [...manual, ...synth];
+}
+
 // ---- VISTA: FINANZAS ----
 function viewFinance() {
   if (state.pets.length === 0) {
     return noPetsOnboarding('money', 'Aún no hay gastos que mostrar', 'Registra una mascota primero para empezar a llevar el control de sus gastos veterinarios, alimentación y más.');
   }
-  const allExpenses = state.expenses || [];
+  const allExpenses = getFinanceExpenses();
   const pets = state.pets;
   const today = new Date();
   const thisMonth = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
@@ -2007,15 +2032,17 @@ function viewFinance() {
                        <td class="py-3 text-gray-400 whitespace-nowrap text-xs">${formatDate(e.date)}</td>
                        <td class="py-3 font-medium text-gray-800 max-w-[200px]">
                          <span class="truncate block">${e.description}</span>
+                         ${e.source && e.source !== 'manual' ? `<span class="text-[10px] text-gray-400">Automático · ficha de la mascota</span>` : ''}
                        </td>
                        <td class="py-3 text-gray-500 text-xs">${e.pet ? `${speciesEmoji(pets.find(p=>p.name===e.pet)?.species||'')} ${e.pet}` : '—'}</td>
                        <td class="py-3"><span class="badge text-xs" style="background:${catColors[e.category]+'22'};color:${catColors[e.category]}">${e.category||'—'}</span></td>
                        <td class="py-3 text-right font-bold text-gray-900 whitespace-nowrap">${fmtCLP(e.amount)}</td>
                        <td class="py-3 text-right">
+                         ${(!e.source || e.source === 'manual') ? `
                          <button onclick="deleteExpense('${e.id}')"
                            class="w-7 h-7 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors ml-auto md:opacity-0 md:group-hover:opacity-100">
                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                         </button>
+                         </button>` : ''}
                        </td>
                      </tr>`).join('')}
                  </tbody>
@@ -3169,7 +3196,7 @@ async function saveEvent(e) {
   }).select().single();
   if (error) { showToast('Error al guardar evento', 'error'); return; }
   state.events.push({ id: data.id, title: data.title, date: data.date, time: data.time,
-    type: data.type, petId: data.pet_id, notes: data.notes });
+    type: data.type, petId: data.pet_id, pet: state.pets.find(p => p.id === data.pet_id)?.name || null, notes: data.notes });
   closeModal(); render();
   showToast('Evento guardado', 'success');
 }
@@ -3189,8 +3216,8 @@ async function saveExpense(e) {
     amount: g('ex-amount'), description: g('ex-desc')
   }).select().single();
   if (error) { showToast('Error al guardar gasto', 'error'); return; }
-  state.expenses.push({ id: data.id, petId: data.pet_id, date: data.date,
-    category: data.category, amount: data.amount, description: data.description });
+  state.expenses.push({ id: data.id, petId: data.pet_id, pet: state.pets.find(p => p.id === data.pet_id)?.name || null,
+    date: data.date, category: data.category, amount: data.amount, description: data.description });
   closeModal(); render();
   showToast('Gasto guardado', 'success');
 }
