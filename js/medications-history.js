@@ -7,7 +7,7 @@
    clínico, incluyendo el registro de dosis tomadas. */
 
 export function tabMedications(pet) {
-  const allMs = [...(pet.medications||[])].reverse();
+  const allMs = [...(pet.medications||[])].sort((a,b) => b.startDate > a.startDate ? 1 : -1);
   const { items: ms, total, pages, page } = paginate(allMs, `med_${pet.id}`);
   const today = todayStr();
   const reminderLabels = { exact:'Horario exacto', '15':'15 min antes', '30':'30 min antes', '60':'60 min antes' };
@@ -85,7 +85,7 @@ export function tabMedications(pet) {
 }
 
 export function tabHistory(pet) {
-  const allHs = [...(pet.clinicalHistory||[])].reverse();
+  const allHs = [...(pet.clinicalHistory||[])].sort((a,b) => b.date > a.date ? 1 : -1);
   const { items: hs, total, pages, page } = paginate(allHs, `hist_${pet.id}`);
   const typeColors = { Cirugía:'bg-red-50 text-red-700', Esterilización:'bg-purple-50 text-purple-700', Procedimiento:'bg-blue-50 text-blue-700', Diagnóstico:'bg-teal-50 text-teal-700', Otro:'bg-gray-50 text-gray-600' };
   return `
@@ -101,7 +101,7 @@ export function tabHistory(pet) {
         ? emptyState('clipboard','Sin historial clínico','Registra eventos, procedimientos y adjunta documentos')
         : `<div class="relative pl-6">
              <div class="absolute left-2 top-0 bottom-0 w-0.5 bg-gray-200"></div>
-             ${[...hs].reverse().map(h => `
+             ${hs.map(h => `
                <div class="relative mb-4">
                  <div class="absolute -left-4 top-1 w-3 h-3 rounded-full bg-brand-500 border-2 border-white"></div>
                  <div class="border border-gray-100 rounded-xl p-4">

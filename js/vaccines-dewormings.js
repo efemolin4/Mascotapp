@@ -6,7 +6,7 @@
    creación y edición, y guardado/borrado de vacunas y desparasitaciones. */
 
 export function tabVaccines(pet) {
-  const allVs = [...(pet.vaccines||[])].reverse();
+  const allVs = [...(pet.vaccines||[])].sort((a,b) => b.date > a.date ? 1 : -1);
   const { items: vs, total, pages, page } = paginate(allVs, `vac_${pet.id}`);
   return `
     <div class="bg-white rounded-2xl shadow-sm p-5">
@@ -49,7 +49,7 @@ export function tabVaccines(pet) {
 }
 
 export function tabDeworming(pet) {
-  const allDs = [...(pet.deworming||[])].reverse();
+  const allDs = [...(pet.deworming||[])].sort((a,b) => b.date > a.date ? 1 : -1);
   const { items: ds, total, pages, page } = paginate(allDs, `dew_${pet.id}`);
   return `
     <div class="bg-white rounded-2xl shadow-sm p-5">

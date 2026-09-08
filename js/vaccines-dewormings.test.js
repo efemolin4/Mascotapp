@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { makeMockSb } from '../test/mockSupabase.js';
 import '../js/utils.js';   // deja esc/genId/addMonths reales en window
 import '../js/app.js';     // deja canEditPet/blockIfReadOnly reales en window
-import { saveVaccine, deleteVaccine } from './vaccines-dewormings.js';
+import { saveVaccine, deleteVaccine, tabVaccines, tabDeworming } from './vaccines-dewormings.js';
 
 describe('deleteVaccine', () => {
   let pet;
@@ -76,5 +76,37 @@ describe('saveVaccine', () => {
     expect(pet.vaccines[0].id).toBe('vac-9');
     expect(window.closeModal).toHaveBeenCalled();
     expect(window.showToast).toHaveBeenCalledWith('Vacuna guardada', 'success');
+  });
+});
+
+describe('orden cronológico (regresión: antes ordenaba por creación, no por fecha)', () => {
+  beforeEach(() => {
+    window.state = { currentView: 'petProfile', pages: {} };
+  });
+
+  it('tabVaccines muestra la más reciente primero, sin importar el orden en que se cargaron', () => {
+    // Cargadas fuera de orden a propósito: la del medio (2024) es la más
+    // vieja, pero fue la ÚLTIMA en agregarse al arreglo.
+    const pet = { id: 'pet-1', vaccines: [
+      { id: 'v1', name: 'Antirrábica 2025', date: '2025-06-10' },
+      { id: 'v2', name: 'Antirrábica 2026', date: '2026-06-10' },
+      { id: 'v3', name: 'Antirrábica 2024', date: '2024-06-10' },
+    ] };
+    const html = tabVaccines(pet);
+    const i2026 = html.indexOf('Antirrábica 2026');
+    const i2025 = html.indexOf('Antirrábica 2025');
+    const i2024 = html.indexOf('Antirrábica 2024');
+    expect(i2026).toBeGreaterThan(-1);
+    expect(i2026).toBeLessThan(i2025);
+    expect(i2025).toBeLessThan(i2024);
+  });
+
+  it('tabDeworming muestra la más reciente primero', () => {
+    const pet = { id: 'pet-1', deworming: [
+      { id: 'd1', product: 'Producto viejo', date: '2024-01-01' },
+      { id: 'd2', product: 'Producto nuevo', date: '2026-01-01' },
+    ] };
+    const html = tabDeworming(pet);
+    expect(html.indexOf('Producto nuevo')).toBeLessThan(html.indexOf('Producto viejo'));
   });
 });
