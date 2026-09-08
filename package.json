@@ -2,13 +2,14 @@
   "name": "mypets",
   "private": true,
   "type": "module",
-  "description": "Sin build step para la app en sí — este package.json es solo para tests (Vitest). El sitio se sigue sirviendo tal cual: index.html, css/style.css, js/app.js, js/utils.js.",
+  "description": "Sin build step para la app en sí — este package.json es solo para tests (Vitest). El sitio se sigue sirviendo tal cual: index.html, css/style.css y los módulos ES en js/.",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
     "check-exports": "node scripts/check-exports.mjs"
   },
   "devDependencies": {
-    "vitest": "^2.1.9"
+    "jsdom": "^30.0.1",
+    "vitest": "^5.0.0"
   }
 }

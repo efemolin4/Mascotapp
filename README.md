@@ -120,11 +120,15 @@ MyPets-3.0/
 ├── index.html               # Punto de entrada + CDN scripts
 ├── vercel.json               # Reescribe cualquier ruta a index.html (rutas reales en prod)
 ├── package.json               # Solo para tests (Vitest) — la app en sí no tiene build step
+├── vitest.config.js           # environment: jsdom + setupFiles (ver test/setup.js)
 ├── css/
 │   └── style.css              # Estilos personalizados y animaciones
 ├── scripts/
 │   ├── spa-server.py          # Servidor local con el mismo fallback de vercel.json
 │   └── check-exports.mjs      # Verifica que toda función usada en onclick="..." esté exportada
+├── test/
+│   ├── setup.js                # Stub de window.supabase (setupFiles de Vitest)
+│   └── mockSupabase.js         # Mock del query builder de supabase-js para los tests
 └── js/
     ├── utils.js                    # Utilidades puras: fechas, formato, cálculo de estado
     ├── utils.test.js               # Tests de Vitest para js/utils.js
@@ -133,14 +137,19 @@ MyPets-3.0/
     ├── data.js                     # Carga de datos desde Supabase (mascotas, admin, agenda, gastos)
     ├── auth.js                     # Login/registro/logout y datos de demo
     ├── dashboard.js                # Vista de inicio
+    ├── dashboard.test.js           # Tests de renderizado (onboarding, alertas, escape de HTML)
     ├── pets.js                     # Alta, ficha, edición, borrado y segundo tutor
+    ├── pets.test.js                # Tests de savePet() (límite de plan, insert, rollback)
     ├── vaccines-dewormings.js      # Vacunas y desparasitaciones
+    ├── vaccines-dewormings.test.js # Tests de guardar/eliminar vacuna + guardia de solo lectura
     ├── medications-history.js      # Tratamientos e historial clínico
     ├── calendar.js                 # Agenda
     ├── finance.js                  # Finanzas
+    ├── finance.test.js             # Tests de guardar/eliminar gasto
     ├── botiquin.js                 # Botiquín
     ├── tracking.js                 # Seguimiento y Nutrición
-    └── admin.js                    # Panel de administrador SaaS
+    ├── admin.js                    # Panel de administrador SaaS
+    └── admin.test.js               # Tests de applyPlanChange()
 ```
 
 **Sin build step para la app.** Los archivos se sirven tal cual — ver
@@ -162,12 +171,32 @@ npm test        # corre una vez
 npm run test:watch   # modo watch
 ```
 
-Cubre las funciones de `js/utils.js` (aritmética de fechas en zona local,
-los 3 niveles de alerta de `careAlertStatus()`, los umbrales de
-`medStockStatus()`/`foodStockStatus()`, el escape de HTML de `esc()`) y,
-vía `js/exports.test.js`, que ningún botón quede roto por una función sin
-exportar tras mover código entre archivos. El resto de la app (vistas,
-Supabase) no tiene tests todavía — depende de verificación manual en el
+Corre sobre `environment: 'jsdom'` (ver `vitest.config.js`), así que las
+vistas se pueden renderizar de verdad (no solo simular) y assertar sobre el
+HTML resultante. Cubre:
+
+- **`js/utils.js`**: aritmética de fechas en zona local, los 3 niveles de
+  alerta de `careAlertStatus()`, los umbrales de `medStockStatus()`/
+  `foodStockStatus()`, el escape de HTML de `esc()`.
+- **`js/exports.test.js`**: que ningún botón quede roto por una función sin
+  exportar tras mover código entre archivos (corre `check-exports.mjs`).
+- **Vistas** (`dashboard.test.js`): que `viewDashboard()` renderice el
+  onboarding sin mascotas, cuente bien las alertas vencidas, y escape el
+  nombre del usuario.
+- **Llamadas a Supabase** (`pets.test.js`, `vaccines-dewormings.test.js`,
+  `finance.test.js`, `admin.test.js`), con `sb` reemplazado por un mock del
+  query builder (`test/mockSupabase.js`): que un error de Supabase muestre
+  el toast correspondiente y **no** mute el estado local (la clase de bug
+  que motivó agregar `{ error }` a los `deleteX()` — ver más abajo), que el
+  límite de mascotas por plan bloquee el insert antes de llamar a Supabase,
+  que un tutor con acceso de solo lectura no pueda llamar a Supabase, y que
+  un rollback (ej. falla el insert de `pet_access` después de crear la
+  mascota) efectivamente deshaga el insert previo.
+
+Sigue faltando cobertura de la mayoría de las ~150 funciones (wizard de
+alta completo, calendario, botiquín, seguimiento/nutrición, autenticación)
+— lo de arriba son ejemplos representativos de vista + Supabase, no una
+cobertura exhaustiva. El resto depende todavía de verificación manual en el
 navegador.
 
 ---
