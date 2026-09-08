@@ -8,7 +8,7 @@ describe('applyPlanChange', () => {
     window.render = vi.fn();
     window.closeModal = vi.fn();
     document.body.innerHTML = `
-      <input type="radio" name="new-plan" value="pro" checked />
+      <input type="radio" name="new-plan" value="premium" checked />
     `;
     window.state = { adminData: { profiles: [{ id: 'user-1', plan: 'free' }] } };
   });
@@ -16,7 +16,7 @@ describe('applyPlanChange', () => {
   it('actualiza el plan localmente cuando Supabase confirma el cambio', async () => {
     window.sb = makeMockSb({ profiles: { data: null, error: null } });
     await applyPlanChange('user-1');
-    expect(window.state.adminData.profiles[0].plan).toBe('pro');
+    expect(window.state.adminData.profiles[0].plan).toBe('premium');
     expect(window.closeModal).toHaveBeenCalled();
     expect(window.showToast).toHaveBeenCalledWith('Plan actualizado', 'success');
   });

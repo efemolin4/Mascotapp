@@ -20,10 +20,12 @@ export const VACCINES_BY_SPECIES = {
 };
 
 // ---- PLANES ----
-// Límite de mascotas por plan, anunciado en el panel admin pero nunca aplicado
-// al crear una mascota hasta ahora.
-export const PLAN_PET_LIMITS = { free: 1, basic: 3, pro: Infinity, clinic: Infinity };
-export const PLAN_LABELS = { free: 'Free', basic: 'Basic', pro: 'Pro', clinic: 'Clínica' };
+// Modelo de 2 planes: Free (1 mascota, registro médico completo) y Premium
+// (5 mascotas + segundo tutor, Finanzas avanzada, exportar expediente,
+// Botiquín y adjuntos ilimitados en el historial — ver isPremium()/
+// blockIfNotPremium() más abajo).
+export const PLAN_PET_LIMITS = { free: 1, premium: 5 };
+export const PLAN_LABELS = { free: 'Free', premium: 'Premium' };
 
 // ---- PERIODICIDADES ----
 export const PERIODICITY_OPTIONS = [
@@ -148,6 +150,46 @@ export function blockIfReadOnly(pet) {
   if (canEditPet(pet)) return false;
   showToast('Tienes acceso de solo lectura a esta mascota', 'error');
   return true;
+}
+
+// Mismo patrón que canEditPet/blockIfReadOnly, pero para funciones que
+// quedan detrás del plan Premium en vez del rol del tutor. El modo demo
+// siempre se ve desbloqueado (es una vitrina del producto completo), igual
+// que ya hace savePet() con el límite de mascotas.
+export function isPremium() {
+  return isDemoUser() || state.user?.plan === 'premium';
+}
+
+export function blockIfNotPremium(feature) {
+  if (isPremium()) return false;
+  showToast(`${feature} es una función Premium — mejora tu plan para usarla.`, 'error');
+  return true;
+}
+
+// Tarjeta de "esto es Premium" reutilizable — un fragmento, sin appShell
+// propio, para insertar dentro de una vista que ya tiene el suyo (ej. el
+// cuerpo del gráfico en Finanzas, que convive con filtros/stat cards que sí
+// siguen siendo gratis).
+export function premiumUpsellCard(iconName, title, desc) {
+  return `
+    <div class="bg-white rounded-2xl shadow-sm p-8 md:p-10 text-center max-w-lg mx-auto">
+      <div class="mb-4 flex justify-center text-brand-300">${icon(iconName, 'w-12 h-12 md:w-14 md:h-14')}</div>
+      <span class="badge bg-brand-100 text-brand-700 text-xs font-bold uppercase tracking-wide">Premium</span>
+      <h2 class="text-base md:text-lg font-bold text-gray-900 mt-3 mb-2">${title}</h2>
+      <p class="text-sm text-gray-500 mb-6">${desc}</p>
+      <button onclick="showToast('Escríbenos para mejorar tu plan a Premium', '')" class="btn-primary px-5 py-2.5 text-sm">Mejorar a Premium</button>
+    </div>`;
+}
+
+// Pantalla completa para una sección entera detrás del plan Premium (ej.
+// Botiquín) — mismo estilo que noPetsOnboarding() más abajo, pero con badge
+// "Premium" y CTA de mejorar de plan en vez de "registrar tu primera mascota".
+export function premiumUpsell(iconName, title, desc) {
+  return appShell(`
+    <div class="max-w-lg mx-auto text-center py-10 md:py-16 animate-fade-in">
+      ${premiumUpsellCard(iconName, title, desc)}
+    </div>
+  `);
 }
 
 // ---- CARGA DE DATOS ----
@@ -716,7 +758,8 @@ document.addEventListener('DOMContentLoaded', initApp);
 if (typeof window !== 'undefined') {
   Object.assign(window, {
     getPage, setPage, paginate, pagerHTML, loadState, saveState, isDemoUser,
-    canEditPet, blockIfReadOnly, showToast, viewToPath, pathToView,
+    canEditPet, blockIfReadOnly, isPremium, blockIfNotPremium, premiumUpsell, premiumUpsellCard,
+    showToast, viewToPath, pathToView,
     resolveInitialViewFromUrl, navigate, iconSVG, icon, sidebar, bottomNav,
     appShell, pageHeader, statCard, petAvatar, emptyState, noPetsOnboarding,
     openModal, closeModal, injectStyles, render, initApp,

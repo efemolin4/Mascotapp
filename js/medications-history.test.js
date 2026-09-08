@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { makeMockSb } from '../test/mockSupabase.js';
 import '../js/utils.js';
 import '../js/app.js';   // deja state/icon/esc/appShell/paginate/pagerHTML/blockIfReadOnly reales en window
-import { tabHistory, tabMedications, markDoseTaken, saveEditMedication, removeHistoryFile } from './medications-history.js';
+import { tabHistory, tabMedications, markDoseTaken, saveEditMedication, removeHistoryFile, saveHistory, saveEditHistory } from './medications-history.js';
 
 // Regresión: tabHistory y tabMedications ordenaban por .reverse() (orden de
 // creación invertido), no por fecha real — un evento clínico cargado más
@@ -162,5 +162,71 @@ describe('removeHistoryFile', () => {
     window.sb = makeMockSb();
     await removeHistoryFile('pet-1', 'h1', 0);
     expect(window.sb.from).not.toHaveBeenCalled();
+  });
+});
+
+// Regresión/cobertura del nuevo gating por plan: 1 adjunto por evento en
+// Free, ilimitados en Premium — ver comentario en saveHistory()/
+// saveEditHistory() en js/medications-history.js.
+describe('límite de adjuntos por plan (Free: 1, Premium: ilimitado)', () => {
+  function fakeFileInput(id, fileNames) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.id = id;
+    const files = fileNames.map(name => new File(['contenido'], name, { type: 'application/pdf' }));
+    Object.defineProperty(input, 'files', { value: files, configurable: true });
+    document.body.appendChild(input);
+    return input;
+  }
+
+  beforeEach(() => {
+    window.showToast = vi.fn();
+    window.render = vi.fn();
+    window.closeModal = vi.fn();
+    window.isDemoUser = vi.fn(() => false);
+    document.body.innerHTML = `
+      <input id="h-title" value="Control" />
+      <select id="h-type"><option value="Diagnóstico" selected>Diagnóstico</option></select>
+      <input id="h-date" value="2026-06-15" />
+      <input id="h-doctor" value="" />
+      <input id="h-clinic" value="" />
+      <input id="h-cost" value="" />
+      <textarea id="h-notes"></textarea>
+    `;
+  });
+
+  it('saveHistory recorta a 1 archivo cuando el usuario es Free', async () => {
+    window.isPremium = vi.fn(() => false);
+    fakeFileInput('h-files', ['a.pdf', 'b.pdf', 'c.pdf']);
+    const pet = { id: 'pet-1', myRole: 'owner', clinicalHistory: [] };
+    window.state = { pets: [pet] };
+    window.sb = makeMockSb({ history_records: { data: { id: 'h1' }, error: null } });
+    await saveHistory({ preventDefault: () => {} }, 'pet-1');
+    const insertPayload = window.sb.from.mock.results[0].value.insert.mock.calls[0][0];
+    expect(insertPayload.files).toHaveLength(1);
+    expect(pet.clinicalHistory[0].files).toHaveLength(1);
+  });
+
+  it('saveHistory NO recorta archivos cuando el usuario es Premium', async () => {
+    window.isPremium = vi.fn(() => true);
+    fakeFileInput('h-files', ['a.pdf', 'b.pdf', 'c.pdf']);
+    const pet = { id: 'pet-1', myRole: 'owner', clinicalHistory: [] };
+    window.state = { pets: [pet] };
+    window.sb = makeMockSb({ history_records: { data: { id: 'h1' }, error: null } });
+    await saveHistory({ preventDefault: () => {} }, 'pet-1');
+    const insertPayload = window.sb.from.mock.results[0].value.insert.mock.calls[0][0];
+    expect(insertPayload.files).toHaveLength(3);
+  });
+
+  it('saveEditHistory recorta a 1 archivo TOTAL (existentes + nuevos) cuando el usuario es Free', async () => {
+    window.isPremium = vi.fn(() => false);
+    fakeFileInput('eh-files', ['nuevo.pdf']);
+    const h = { id: 'h1', title: 'Control', files: [{ name: 'viejo.pdf', data: 'x' }] };
+    const pet = { id: 'pet-1', myRole: 'owner', clinicalHistory: [h] };
+    window.state = { pets: [pet] };
+    window.sb = makeMockSb({ history_records: { data: null, error: null } });
+    await saveEditHistory({ preventDefault: () => {} }, 'pet-1', 'h1');
+    expect(h.files).toHaveLength(1);
+    expect(h.files[0].name).toBe('viejo.pdf'); // se prioriza lo ya existente sobre lo nuevo
   });
 });

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { makeMockSb } from '../test/mockSupabase.js';
+import '../js/utils.js'; // deja esc/icon/fmtCLP/formatDate reales en window
 import '../js/app.js'; // deja canEditPet/blockIfReadOnly reales en window
-import { savePet, deletePet } from './pets.js';
+import { savePet, deletePet, openInviteTutor2Modal, exportPetRecord } from './pets.js';
 
 // savePet() lee/escribe sobre `state`, `sb`, etc. como globales (ver
 // js/utils.js para el porqué de esa convención) — acá se los proveemos a
@@ -15,10 +16,11 @@ describe('savePet', () => {
     window.navigate = vi.fn();
     window.isDemoUser = vi.fn(() => false);
     window.createPetInvite = vi.fn(async () => {});
-    window.PLAN_PET_LIMITS = { free: 1, basic: 3, pro: Infinity, clinic: Infinity };
-    window.PLAN_LABELS = { free: 'Free', basic: 'Basic', pro: 'Pro', clinic: 'Clínica' };
+    // PLAN_PET_LIMITS/PLAN_LABELS: los reales, expuestos por el import de
+    // js/app.js de arriba — no se mano-copian acá para no desincronizarse
+    // de nuevo si el modelo de planes vuelve a cambiar.
     window.state = {
-      user: { id: 'user-1', plan: 'pro' },
+      user: { id: 'user-1', plan: 'premium' },
       pets: [],
       newPetData: { name: 'Rex', species: 'Perro' },
       addPetStep: 4,
@@ -34,7 +36,7 @@ describe('savePet', () => {
     expect(window.sb.from).not.toHaveBeenCalled();
   });
 
-  it('respeta el límite de mascotas del plan y no llama a Supabase', async () => {
+  it('respeta el límite de mascotas del plan Free (1) y no llama a Supabase', async () => {
     window.state.user.plan = 'free';
     window.state.pets = [{ id: 'existing' }]; // ya en el límite de "free" (1)
     window.sb = makeMockSb();
@@ -42,6 +44,16 @@ describe('savePet', () => {
     expect(window.showToast).toHaveBeenCalledWith(expect.stringContaining('Free'), 'error');
     expect(window.sb.from).not.toHaveBeenCalled();
     expect(window.state.pets).toHaveLength(1);
+  });
+
+  it('respeta el límite de mascotas del plan Premium (5) y no llama a Supabase', async () => {
+    window.state.user.plan = 'premium';
+    window.state.pets = Array.from({ length: 5 }, (_, i) => ({ id: `pet-${i}` }));
+    window.sb = makeMockSb();
+    await savePet();
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringContaining('Premium'), 'error');
+    expect(window.sb.from).not.toHaveBeenCalled();
+    expect(window.state.pets).toHaveLength(5);
   });
 
   it('inserta la mascota y su fila de pet_access, y navega a la ficha', async () => {
@@ -124,5 +136,44 @@ describe('deletePet', () => {
     window.sb = makeMockSb({ invitations: { data: null, error: null }, pet_access: { data: null, error: null } });
     await deletePet('pet-1');
     expect(window.state.pets).toHaveLength(0);
+  });
+});
+
+// Regresión/cobertura del nuevo gating por plan: segundo tutor y exportar
+// expediente quedan detrás de Premium (ver js/app.js: blockIfNotPremium).
+describe('gating Premium: segundo tutor y exportar expediente', () => {
+  let pet;
+
+  beforeEach(() => {
+    window.openModal = vi.fn();
+    pet = { id: 'pet-1', name: 'Greta', myRole: 'owner', vaccines: [], medications: [], clinicalHistory: [], vet: {} };
+    window.state = { pets: [pet] };
+  });
+
+  it('openInviteTutor2Modal no abre el modal si blockIfNotPremium bloquea', () => {
+    window.blockIfNotPremium = vi.fn(() => true);
+    openInviteTutor2Modal('pet-1');
+    expect(window.blockIfNotPremium).toHaveBeenCalledWith('Compartir con un segundo tutor');
+    expect(window.openModal).not.toHaveBeenCalled();
+  });
+
+  it('openInviteTutor2Modal abre el modal cuando blockIfNotPremium no bloquea', () => {
+    window.blockIfNotPremium = vi.fn(() => false);
+    openInviteTutor2Modal('pet-1');
+    expect(window.openModal).toHaveBeenCalled();
+  });
+
+  it('exportPetRecord no abre el modal si blockIfNotPremium bloquea', () => {
+    window.blockIfNotPremium = vi.fn(() => true);
+    exportPetRecord('pet-1');
+    expect(window.blockIfNotPremium).toHaveBeenCalledWith('Exportar el expediente');
+    expect(window.openModal).not.toHaveBeenCalled();
+  });
+
+  it('exportPetRecord abre el modal cuando blockIfNotPremium no bloquea', () => {
+    window.blockIfNotPremium = vi.fn(() => false);
+    window.todayStr = vi.fn(() => '2026-06-15');
+    exportPetRecord('pet-1');
+    expect(window.openModal).toHaveBeenCalled();
   });
 });

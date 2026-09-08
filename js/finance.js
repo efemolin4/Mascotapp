@@ -76,6 +76,7 @@ export function viewFinance() {
   const periods = buildPeriods();
 
   setTimeout(() => {
+    if (!isPremium()) return; // el canvas ni se renderiza en Free — ver premiumUpsellCard() abajo
     const ctx = document.getElementById('expenses-chart');
     if (!ctx) return;
     if (window.chartInstance) window.chartInstance.destroy();
@@ -161,7 +162,9 @@ export function viewFinance() {
       ${statCard(icon('paw','w-5 h-5 md:w-6 md:h-6'),'Mascotas', pets.length, 'brand')}
     </div>
 
-    ${viewMode === 'grafico' ? `
+    ${viewMode === 'grafico' ? (!isPremium() ? `
+    <div class="mb-6">${premiumUpsellCard('chartBar', 'Gráficos y predicción de gastos', 'Visualiza tus gastos por período, categoría y mascota, y una proyección del próximo mes. Disponible en el plan Premium.')}</div>
+    ` : `
     <!-- GRÁFICO -->
     <div class="grid md:grid-cols-3 gap-6 mb-6">
       <div class="md:col-span-2 bg-white rounded-2xl shadow-sm p-5">
@@ -205,7 +208,7 @@ export function viewFinance() {
           }).join('')}
         </div>` : ''}
       </div>
-    </div>` : `
+    </div>`) : `
     <!-- LISTADO -->
     ${(() => {
       const sorted = [...expenses].sort((a,b)=>b.date>a.date?1:-1);
@@ -259,11 +262,16 @@ export function viewFinance() {
     })()}`}
 
     ${(() => {
-      // Predicción de gastos próximo mes. Usa `expenses` (ya filtrado por
-      // mascota), no `allExpenses` — antes usaba allExpenses acá y la
-      // proyección/tendencia seguía mostrando el gasto de TODAS las
-      // mascotas aunque el usuario hubiera filtrado por una sola en el
-      // selector "Mascota", a diferencia de cada otro widget de la página.
+      // Predicción de gastos: función Premium (igual que el gráfico) — se
+      // muestra el upsell una sola vez arriba (al entrar a "Gráfico"), acá
+      // simplemente no se calcula nada para no duplicar el mensaje en la
+      // vista de Lista.
+      if (!isPremium()) return '';
+      // Usa `expenses` (ya filtrado por mascota), no `allExpenses` — antes
+      // usaba allExpenses acá y la proyección/tendencia seguía mostrando el
+      // gasto de TODAS las mascotas aunque el usuario hubiera filtrado por
+      // una sola en el selector "Mascota", a diferencia de cada otro widget
+      // de la página.
       const last90Days = daysFromNowStr(-90);
       const last90Expenses = expenses.filter(e => e.date >= last90Days);
       const last90Amounts = last90Expenses.map(e => Number(e.amount || 0)).filter(a => a > 0);

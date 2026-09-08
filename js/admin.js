@@ -13,19 +13,14 @@ export function viewAdmin() {
   const allPets  = ad.pets;
 
   const planColors = {
-    free:   'bg-gray-100 text-gray-600',
-    basic:  'bg-blue-100 text-blue-700',
-    pro:    'bg-brand-100 text-brand-700',
-    clinic: 'bg-amber-100 text-amber-700',
+    free:    'bg-gray-100 text-gray-600',
+    premium: 'bg-brand-100 text-brand-700',
   };
-  const planLabel = { free:'Free', basic:'Basic', pro:'Pro', clinic:'Clínica' };
+  const planLabel = { free:'Free', premium:'Premium' };
 
   const totalUsers  = profiles.length;
   const totalPets   = allPets.length;
-  const proUsers    = profiles.filter(p => p.plan === 'pro').length;
-  const basicUsers  = profiles.filter(p => p.plan === 'basic').length;
-  const clinicUsers = profiles.filter(p => p.plan === 'clinic').length;
-  const paidUsers   = proUsers + basicUsers + clinicUsers;
+  const paidUsers   = profiles.filter(p => p.plan === 'premium').length;
 
   const speciesDist = allPets.reduce((acc, p) => { acc[p.species] = (acc[p.species]||0)+1; return acc; }, {});
 
@@ -61,7 +56,7 @@ export function viewAdmin() {
         <div class="bg-white rounded-2xl shadow-sm p-5">
           <h3 class="font-semibold text-gray-800 mb-4 flex items-center gap-1.5">${icon('creditCard','w-4 h-4')} Distribución de planes</h3>
           <div class="space-y-3">
-            ${[['free','Free',totalUsers-paidUsers,'bg-gray-400'],['basic','Basic',basicUsers,'bg-blue-500'],['pro','Pro',proUsers,'bg-brand-500'],['clinic','Clínica',clinicUsers,'bg-amber-500']].map(([_,label,n,color]) => {
+            ${[['free','Free',totalUsers-paidUsers,'bg-gray-400'],['premium','Premium',paidUsers,'bg-brand-500']].map(([_,label,n,color]) => {
               const pct = totalUsers > 0 ? Math.round(n/totalUsers*100) : 0;
               return '<div><div class="flex justify-between text-sm mb-1"><span class="font-medium text-gray-700">'+label+'</span><span class="text-gray-500">'+n+' usuarios ('+pct+'%)</span></div><div class="bg-gray-100 rounded-full h-2"><div class="h-2 rounded-full '+color+'" style="width:'+pct+'%"></div></div></div>';
             }).join('')}
@@ -124,15 +119,13 @@ export function viewAdmin() {
       </div>`;
 
     if (tab === 'planes') return `
-      <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="grid md:grid-cols-2 gap-4 max-w-2xl">
         ${[
-          { id:'free',   name:'Free',    price:'$0',         features:['1 mascota','Historial básico','Vacunas y medicamentos','Sin soporte'] },
-          { id:'basic',  name:'Basic',   price:'$4.990/mes', features:['3 mascotas','Todo Free','Agenda y finanzas','Soporte por email'] },
-          { id:'pro',    name:'Pro',     price:'$9.990/mes', features:['Mascotas ilimitadas','Todo Basic','Seguimiento avanzado','IA veterinaria','Soporte prioritario'] },
-          { id:'clinic', name:'Clínica', price:'$29.990/mes',features:['Multi-usuario','Gestión clínica','Panel de análisis','API acceso','Soporte dedicado'] },
+          { id:'free',    name:'Free',    price:'$0',        features:['1 mascota','Fichas, vacunas, desparasitaciones y tratamientos','Historial clínico','Agenda y alertas','Finanzas básicas (lista y total)','Seguimiento y Nutrición','1 archivo adjunto por evento del historial'] },
+          { id:'premium', name:'Premium', price:'$2.000/mes',features:['5 mascotas','Todo lo de Free','Compartir con un segundo tutor','Finanzas avanzada (gráficos y predicción)','Exportar expediente en PDF','Botiquín del hogar','Adjuntos ilimitados en el historial'] },
         ].map(p => {
           const cnt = profiles.filter(u=>(u.plan||'free')===p.id).length;
-          return '<div class="bg-white rounded-2xl shadow-sm p-5 border-2 '+(p.id==='pro'?'border-brand-400':'border-transparent')+'"><div class="mb-3">'+(p.id==='pro'?'<span class="text-[10px] bg-brand-500 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Popular</span>':'')+'<h3 class="font-bold text-gray-900 text-lg mt-1">'+p.name+'</h3><p class="text-2xl font-black text-gray-900 mt-1">'+p.price+'</p></div><ul class="space-y-1.5 mb-4">'+p.features.map(f=>'<li class="flex items-start gap-2 text-sm text-gray-600"><span class="text-green-500 mt-0.5">✓</span>'+f+'</li>').join('')+'</ul><div class="pt-3 border-t border-gray-100 text-xs text-gray-400">'+cnt+' usuario'+(cnt!==1?'s':'')+' activo'+(cnt!==1?'s':'')+'</div></div>';
+          return '<div class="bg-white rounded-2xl shadow-sm p-5 border-2 '+(p.id==='premium'?'border-brand-400':'border-transparent')+'"><div class="mb-3">'+(p.id==='premium'?'<span class="text-[10px] bg-brand-500 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Popular</span>':'')+'<h3 class="font-bold text-gray-900 text-lg mt-1">'+p.name+'</h3><p class="text-2xl font-black text-gray-900 mt-1">'+p.price+'</p></div><ul class="space-y-1.5 mb-4">'+p.features.map(f=>'<li class="flex items-start gap-2 text-sm text-gray-600"><span class="text-green-500 mt-0.5">✓</span>'+f+'</li>').join('')+'</ul><div class="pt-3 border-t border-gray-100 text-xs text-gray-400">'+cnt+' usuario'+(cnt!==1?'s':'')+' activo'+(cnt!==1?'s':'')+'</div></div>';
         }).join('')}
       </div>`;
     return '';
@@ -151,10 +144,8 @@ export function viewAdmin() {
 
 export async function openChangePlanModal(userId, userName, currentPlan) {
   const plans = [
-    { id:'free',   label:'Free',    desc:'Gratis' },
-    { id:'basic',  label:'Basic',   desc:'$4.990/mes' },
-    { id:'pro',    label:'Pro',     desc:'$9.990/mes' },
-    { id:'clinic', label:'Clínica', desc:'$29.990/mes' },
+    { id:'free',    label:'Free',    desc:'Gratis' },
+    { id:'premium', label:'Premium', desc:'$2.000/mes' },
   ];
   openModal('<div class="modal-box p-5"><h3 class="text-lg font-bold text-gray-900 mb-1">Cambiar plan</h3><p class="text-sm text-gray-500 mb-4">Usuario: <strong>'+esc(userName)+'</strong></p><div class="space-y-2 mb-5">'+plans.map(p=>'<label class="flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all '+(p.id===currentPlan?'border-brand-400 bg-brand-50':'border-gray-100 hover:border-gray-200')+'"><input type="radio" name="new-plan" value="'+p.id+'" '+(p.id===currentPlan?'checked':'')+' class="accent-brand-600"><div class="flex-1"><div class="font-semibold text-sm text-gray-900">'+p.label+'</div><div class="text-xs text-gray-400">'+p.desc+'</div></div></label>').join('')+'</div><div class="flex gap-3"><button onclick="closeModal()" class="btn-secondary flex-1">Cancelar</button><button onclick="applyPlanChange(\''+userId+'\')" class="btn-primary flex-1">Guardar</button></div></div>');
 }

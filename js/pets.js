@@ -438,7 +438,7 @@ export function tabGeneral(pet) {
       </div>` : ''}
       <div class="bg-white rounded-2xl shadow-sm p-5">
         <div class="flex items-center justify-between mb-3">
-          <h3 class="font-semibold text-gray-700">Segundo Tutor</h3>
+          <h3 class="font-semibold text-gray-700 flex items-center gap-1.5">Segundo Tutor ${!isPremium() ? '<span class="badge bg-brand-100 text-brand-700 text-[10px] font-bold uppercase tracking-wide">Premium</span>' : ''}</h3>
           ${(!pet.myRole || pet.myRole === 'owner') ? (pet.tutor2?.name
             ? `<button onclick="removeTutor2('${pet.id}')" class="text-xs text-red-500 hover:underline">${pet.tutor2.pending ? 'Cancelar invitación' : 'Quitar tutor'}</button>`
             : `<button onclick="openInviteTutor2Modal('${pet.id}')" class="btn-primary text-xs">+ Invitar</button>`) : ''}
@@ -958,6 +958,7 @@ export function updateBreedOptions(species) {
 export function exportPetRecord(petId) {
   const pet = state.pets.find(p => p.id === petId);
   if (!pet) return;
+  if (blockIfNotPremium('Exportar el expediente')) return;
   const activeVaccines = (pet.vaccines || []).filter(v => v.nextDate && v.nextDate >= todayStr()).slice(0,5);
   const activeMeds = (pet.medications || []).filter(m => m.active).slice(0,5);
   const lastHistory = [...(pet.clinicalHistory || [])].sort((a,b)=>b.date>a.date?1:-1).slice(0,5);
@@ -1025,6 +1026,7 @@ export function exportPetRecord(petId) {
 export function openInviteTutor2Modal(petId) {
   const pet = state.pets.find(p => p.id === petId);
   if (!pet) return;
+  if (blockIfNotPremium('Compartir con un segundo tutor')) return;
   openModal(`
     <div class="modal-box p-4 sm:p-6">
       <h3 class="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">${icon('users','w-5 h-5')} Invitar Segundo Tutor</h3>

@@ -252,12 +252,37 @@ Repartidas entre `js/*.js` según la tabla de la sección anterior (ej.
 
 ## Planes SaaS
 
-| Plan | Precio | Límites |
+Modelo de 2 planes (reemplaza al anterior de 4 — ver "Migración a 2 planes"
+más abajo). El límite de mascotas vive en `PLAN_PET_LIMITS`
+(`js/app.js`); el resto de las funciones Premium se gatean con
+`isPremium()`/`blockIfNotPremium()`/`premiumUpsell()` (también en
+`js/app.js`) — mismo patrón que ya usa `canEditPet()`/`blockIfReadOnly()`
+para el rol de solo lectura de un tutor compartido.
+
+| Plan | Precio | Incluye |
 |---|---|---|
-| Free | $0 | 1 mascota, funciones básicas |
-| Basic | $4.990/mes | 3 mascotas, agenda y finanzas |
-| Pro | $9.990/mes | Mascotas ilimitadas, seguimiento avanzado, IA |
-| Clínica | $29.990/mes | Multi-usuario, gestión clínica, API |
+| **Free** | $0 | 1 mascota · fichas, vacunas, desparasitaciones, tratamientos e historial clínico completos · agenda y alertas · Finanzas básicas (lista y total) · Seguimiento y Nutrición · 1 archivo adjunto por evento del historial |
+| **Premium** | $2.000/mes | 5 mascotas · todo lo de Free · compartir con un segundo tutor · Finanzas avanzada (gráficos por período y predicción de gastos) · exportar expediente en PDF · Botiquín del hogar · adjuntos ilimitados en el historial |
+
+El modo demo (`demo@mypets.cl`) siempre se ve como Premium — es una
+vitrina del producto completo, no debe sentirse limitado.
+
+### Migración a 2 planes (2026-09-08)
+
+Antes existían 4 planes (`free`/`basic`/`pro`/`clinic`), pero el único
+límite realmente aplicado en todo el código era el número de mascotas —
+ninguna otra función estaba restringida por plan. Al simplificar a 2
+planes, corré esto una sola vez en el SQL Editor de Supabase para migrar
+las cuentas existentes:
+
+```sql
+UPDATE public.profiles SET plan = 'premium' WHERE plan IN ('basic', 'pro', 'clinic');
+```
+
+Si Supabase rechaza el `UPDATE` porque `profiles.plan` tiene un CHECK
+constraint restringiendo los valores permitidos (no hay ninguno
+documentado en este repo — `profiles.plan` es `text` plano), hay que
+ajustar ese constraint ahí mismo antes de correr la migración.
 
 ---
 

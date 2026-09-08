@@ -6,6 +6,10 @@
    productos (vendajes, jeringas, etc. — no ligados a un tratamiento). */
 
 export function viewBotiquin() {
+  if (!isPremium()) {
+    return premiumUpsell('kit', 'Botiquín del hogar',
+      'Lleva el inventario de vendas, jeringas y medicamentos que tienes en casa, con alertas de stock bajo y vencimiento. Disponible en el plan Premium.');
+  }
   const pets = state.pets;
   const allMeds = pets.flatMap(p => (p.medications||[]).map(m => ({ ...m, petName: p.name, petId: p.id })));
   const today = todayStr();
