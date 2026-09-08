@@ -306,6 +306,18 @@ CREATE POLICY "Owner can delete pets" ON public.pets
   USING (owner_id = auth.uid());
 
 -- ---------------------------------------------------------------
+-- plan_changes
+-- Auditoría de cambios de plan (ver applyPlanChange() en js/admin.js) —
+-- tabla nueva del 2026-09-08, no existía antes. Solo el admin la toca
+-- (tanto para insertar el registro al cambiar un plan como para leerla
+-- en el dashboard), así que una sola política ALL alcanza.
+-- ---------------------------------------------------------------
+CREATE POLICY "Admins manage plan_changes" ON public.plan_changes
+  FOR ALL TO public
+  USING (is_admin())
+  WITH CHECK (is_admin());
+
+-- ---------------------------------------------------------------
 -- profiles
 -- ---------------------------------------------------------------
 CREATE POLICY "Users manage own profile" ON public.profiles

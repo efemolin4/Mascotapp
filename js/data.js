@@ -140,13 +140,19 @@ async function loadDataFromSupabase() {
 async function loadAdminData() {
   if (!state.user?.isAdmin) return;
   try {
-    const [profilesRes, petsRes] = await Promise.all([
+    const [profilesRes, petsRes, planChangesRes] = await Promise.all([
       sb.from('profiles').select('*').order('created_at', { ascending: false }),
       sb.from('pets').select('id, owner_id, species, created_at'),
+      // Auditoría de cambios de plan (ver applyPlanChange() en js/admin.js) —
+      // permite calcular churn (bajas Premium→Free) y mostrar el historial,
+      // algo que antes no existía: applyPlanChange() sobrescribía el plan
+      // sin dejar ningún rastro de quién lo cambió, ni de qué a qué, ni cuándo.
+      sb.from('plan_changes').select('*').order('changed_at', { ascending: false }),
     ]);
     state.adminData = {
       profiles: profilesRes.data || [],
       pets: petsRes.data || [],
+      planChanges: planChangesRes.data || [],
     };
   } catch(err) {
     console.error('Admin data error:', err);

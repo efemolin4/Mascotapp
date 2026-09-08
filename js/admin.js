@@ -8,9 +8,10 @@
 // ---- VISTA ADMINISTRADOR ----
 export function viewAdmin() {
   if (!state.user?.isAdmin) { navigate('dashboard', {}, { replace: true }); return ''; }
-  const ad = state.adminData || { profiles: [], pets: [] };
+  const ad = state.adminData || { profiles: [], pets: [], planChanges: [] };
   const profiles = ad.profiles;
   const allPets  = ad.pets;
+  const planChanges = ad.planChanges || [];
 
   const planColors = {
     free:    'bg-gray-100 text-gray-600',
@@ -22,14 +23,21 @@ export function viewAdmin() {
   const totalPets   = allPets.length;
   const paidUsers   = profiles.filter(p => p.plan === 'premium').length;
   // Métricas de negocio: MRR es exacto (todo Premium paga lo mismo, no hay
-  // anual/descuentos todavía). La conversión es una foto del estado ACTUAL
-  // (% de usuarios que hoy son Premium) — no un embudo por cohorte, porque
-  // no existe historial de cambios de plan (applyPlanChange() sobrescribe
-  // sin dejar rastro); si se agrega una tabla de auditoría más adelante,
-  // esto se puede refinar a "conversión de los que se registraron hace N
-  // días".
+  // anual/descuentos todavía). La conversión sigue siendo una foto del
+  // estado ACTUAL (% de usuarios que hoy son Premium), no un embudo por
+  // cohorte — para eso además de la fecha del cambio (que ya tenemos en
+  // plan_changes) haría falta la fecha de registro de cada usuario cruzada
+  // con cuándo convirtió, un cálculo más elaborado que se deja para más
+  // adelante si hace falta.
   const mrr = paidUsers * PREMIUM_PRICE_CLP;
   const conversionPct = totalUsers > 0 ? Math.round((paidUsers / totalUsers) * 100) : 0;
+  // Churn: bajas de Premium a Free en los últimos 30 días, según
+  // plan_changes (ver applyPlanChange() en este archivo, que ahora sí deja
+  // registro de cada cambio de plan).
+  const churnCutoff = new Date(); churnCutoff.setDate(churnCutoff.getDate() - 30);
+  const churnedLast30 = planChanges.filter(pc =>
+    pc.from_plan === 'premium' && pc.to_plan === 'free' && new Date(pc.changed_at) >= churnCutoff
+  ).length;
 
   const speciesDist = allPets.reduce((acc, p) => { acc[p.species] = (acc[p.species]||0)+1; return acc; }, {});
 
@@ -57,9 +65,10 @@ export function viewAdmin() {
     if (tab === 'dashboard') return `
       <div class="mb-6">
         <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Métricas de negocio</h3>
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
           ${statCard(icon('money','w-5 h-5 md:w-6 md:h-6'), 'MRR (ingreso mensual)', fmtCLP(mrr), 'teal')}
           ${statCard(icon('chartBar','w-5 h-5 md:w-6 md:h-6'), 'Conversión a Premium', conversionPct + '%', 'brand')}
+          ${statCard(icon('arrowDown','w-5 h-5 md:w-6 md:h-6'), 'Bajas de Premium (30d)', churnedLast30, churnedLast30 > 0 ? 'red' : 'teal')}
         </div>
       </div>
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -100,6 +109,23 @@ export function viewAdmin() {
             return '<div class="flex-1 flex flex-col items-center gap-1"><span class="text-xs font-semibold text-brand-600">'+(n>0?n:'')+'</span><div class="w-full rounded-t-md bg-brand-500 transition-all" style="height:'+h+'%;min-height:'+(n>0?8:2)+'px"></div><span class="text-[10px] text-gray-400">'+day+'</span></div>';
           }).join('')}
         </div>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm p-5 mt-6">
+        <h3 class="font-semibold text-gray-800 mb-4 flex items-center gap-1.5">${icon('clock','w-4 h-4')} Historial de cambios de plan</h3>
+        ${planChanges.length === 0
+          ? '<p class="text-sm text-gray-400 text-center py-6">Todavía no se registró ningún cambio de plan</p>'
+          : '<div class="space-y-2">' + planChanges.slice(0, 10).map(pc => {
+              const target = profiles.find(p => p.id === pc.user_id);
+              const admin  = profiles.find(p => p.id === pc.changed_by);
+              const isDowngrade = pc.from_plan === 'premium' && pc.to_plan === 'free';
+              const when = pc.changed_at ? new Date(pc.changed_at).toLocaleDateString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+              return '<div class="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0 text-sm">'
+                + '<div class="min-w-0"><span class="font-medium text-gray-800">'+esc(target?.name||target?.email||'Usuario eliminado')+'</span>'
+                + ' <span class="text-gray-400">'+esc(planLabel[pc.from_plan]||pc.from_plan)+' → </span>'
+                + '<span class="font-semibold '+(isDowngrade?'text-red-500':'text-brand-600')+'">'+esc(planLabel[pc.to_plan]||pc.to_plan)+'</span>'
+                + '</div><div class="text-right flex-shrink-0"><div class="text-xs text-gray-400">'+when+'</div>'
+                + '<div class="text-[10px] text-gray-300">por '+esc(admin?.name||'—')+'</div></div></div>';
+            }).join('') + '</div>'}
       </div>`;
 
     if (tab === 'usuarios') return `
@@ -169,9 +195,24 @@ export async function openChangePlanModal(userId, userName, currentPlan) {
 export async function applyPlanChange(userId) {
   const plan = document.querySelector('input[name="new-plan"]:checked')?.value;
   if (!plan) return;
+  const profile = (state.adminData?.profiles||[]).find(p=>p.id===userId);
+  const fromPlan = profile?.plan || 'free';
+  if (fromPlan === plan) { closeModal(); return; } // sin cambio real, no hay nada que auditar
   const { error } = await sb.from('profiles').update({ plan }).eq('id', userId);
   if (error) { showToast('Error al cambiar plan', 'error'); return; }
-  const profile = (state.adminData?.profiles||[]).find(p=>p.id===userId);
+  // Registro de auditoría — antes esta función sobrescribía el plan sin dejar
+  // ningún rastro de quién lo cambió, de qué a qué, ni cuándo. No bloquea el
+  // flujo si falla: el cambio de plan en sí ya se guardó, lo único que se
+  // pierde es la entrada del historial.
+  const { data: auditRow, error: auditError } = await sb.from('plan_changes').insert({
+    user_id: userId, from_plan: fromPlan, to_plan: plan, changed_by: state.user.id
+  }).select().single();
+  if (auditError) {
+    console.error('Error al registrar el cambio de plan:', auditError);
+  } else {
+    state.adminData.planChanges = state.adminData.planChanges || [];
+    state.adminData.planChanges.unshift(auditRow);
+  }
   if (profile) profile.plan = plan;
   closeModal();
   showToast('Plan actualizado', 'success');

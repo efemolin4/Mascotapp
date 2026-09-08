@@ -109,6 +109,7 @@ Aplicación web progresiva (PWA) de página única para tutores de mascotas. Per
 | `activities` | Check-in diario de actividad (Poco/Normal/Mucho) |
 | `dose_logs` | Log de dosis administradas |
 | `invitations` | Invitaciones pendientes/aceptadas de segundo tutor |
+| `plan_changes` | Auditoría de cambios de plan (quién, de qué a qué, cuándo) — usada para el churn y el historial del panel Admin |
 | `meals` ⚠️ | Registro de comidas detallado — reemplazada por `food_items`, ya no la usa la app. Sigue teniendo políticas RLS activas (candidata a limpieza). |
 
 Todas las tablas tienen **Row Level Security (RLS)** activo — cada usuario
@@ -283,6 +284,35 @@ Si Supabase rechaza el `UPDATE` porque `profiles.plan` tiene un CHECK
 constraint restringiendo los valores permitidos (no hay ninguno
 documentado en este repo — `profiles.plan` es `text` plano), hay que
 ajustar ese constraint ahí mismo antes de correr la migración.
+
+### Auditoría de cambios de plan (2026-09-08)
+
+`applyPlanChange()` (panel Admin → Usuarios → "Cambiar plan") ahora
+registra cada cambio en una tabla nueva `plan_changes` — antes
+sobreescribía `profiles.plan` sin dejar ningún rastro de quién lo cambió,
+de qué a qué, ni cuándo. Esto habilita el "Bajas de Premium (30d)"
+(churn) y el historial que aparecen en el Dashboard del admin. Requiere
+crear la tabla una sola vez:
+
+```sql
+CREATE TABLE public.plan_changes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  from_plan text,
+  to_plan text not null,
+  changed_by uuid references public.profiles(id),
+  changed_at timestamptz not null default now()
+);
+
+ALTER TABLE public.plan_changes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins manage plan_changes" ON public.plan_changes
+  FOR ALL USING (is_admin()) WITH CHECK (is_admin());
+```
+
+Los cambios de plan hechos con la versión anterior de `applyPlanChange()`
+no quedaron registrados acá (no existía la tabla) — el historial empieza
+a contar desde que se corre esta migración, no reconstruye el pasado.
 
 ---
 
