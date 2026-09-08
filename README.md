@@ -431,6 +431,36 @@ create policy "Users manage food_items of accessible pets" on public.food_items
   usando la tabla `activities` ya existente — sin cambios de esquema.
 - La tabla `meals` queda sin uso (no se borra por si tenías datos ahí).
 
+### Dosis y costo en productos del botiquín (2026-09-08)
+
+El modal de "Agregar producto al botiquín" solo pedía cantidad/unidad de
+stock (ej: "20 comprimidos") — no había forma de registrar la
+concentración del medicamento (ej: Pregalex de 75 mg) ni cuánto costó,
+así que ese gasto nunca se reflejaba en Finanzas como sí pasa con
+vacunas, desparasitaciones y tratamientos. Ahora:
+
+- **Dosis/concentración** (`dose_val` + `dose_unit`, ej: "75 mg") se
+  muestra junto al nombre del producto en el inventario — es la
+  concentración por unidad, distinta de la cantidad en stock.
+- **Costo** (`cost`) + **fecha de compra** (`purchase_date`): si se carga
+  un costo, aparece automáticamente en Finanzas (categoría
+  "Medicamentos"), igual que el costo de una vacuna o un tratamiento —
+  ver `getFinanceExpenses()` en `js/data.js`.
+
+Requiere 4 columnas nuevas en `botiquin_items` (nunca existieron):
+
+```sql
+ALTER TABLE public.botiquin_items
+  ADD COLUMN IF NOT EXISTS dose_val numeric,
+  ADD COLUMN IF NOT EXISTS dose_unit text,
+  ADD COLUMN IF NOT EXISTS cost numeric,
+  ADD COLUMN IF NOT EXISTS purchase_date date;
+```
+
+No hace falta tocar RLS — `botiquin_items` ya tiene su política
+`Users manage own botiquin` (`user_id = auth.uid()`), que cubre columnas
+nuevas automáticamente.
+
 ---
 
 ## Deploy

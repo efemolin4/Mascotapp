@@ -50,11 +50,13 @@ export function viewBotiquin() {
                  <div class="flex-1 min-w-0">
                    <div class="flex items-center gap-2 flex-wrap">
                      <span class="font-medium text-gray-900 text-sm">${esc(item.name)}</span>
+                     ${item.doseVal ? `<span class="badge bg-brand-50 text-brand-600 text-xs">${esc(item.doseVal)} ${esc(item.doseUnit||'')}</span>` : ''}
                      ${item.category ? `<span class="badge bg-gray-100 text-gray-500 text-xs">${esc(item.category)}</span>` : ''}
                      <span class="badge text-xs ${statusColor[st]}">${statusLabel[st]}</span>
                    </div>
                    <div class="text-xs mt-0.5 text-gray-400">
                      ${item.quantity ?? 0} ${item.unit||''}
+                     ${Number(item.cost) > 0 ? ` · ${fmtCLP(item.cost)}` : ''}
                      ${item.expiryDate ? ` · <span class="${isExpired?'text-red-500':'text-gray-400'}">${isExpired?'Venció':'Vence'} ${formatDate(item.expiryDate)}</span>` : ''}
                    </div>
                  </div>
@@ -167,11 +169,12 @@ export function openBotiquinItemModal(itemId) {
   const item = itemId ? (state.botiquin||[]).find(i => i.id === itemId) : null;
   const categories = ['Medicamento','Vendaje','Higiene','Alimento','Accesorio','Otro'];
   const units = ['unidades','comprimidos','ml','mg','cajas','frascos'];
+  const doseUnits = ['mg','ml','Comprimido(s)','Gotas','UI'];
   openModal(`
     <div class="modal-box p-4 sm:p-6">
       <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">${item ? icon('pencil','w-5 h-5') : icon('kit','w-5 h-5')} ${item ? 'Editar producto' : 'Agregar producto al botiquín'}</h3>
       <form onsubmit="saveBotiquinItem(event${item ? `,'${item.id}'` : ''})" class="space-y-3">
-        <div><label class="form-label">Nombre *</label><input id="bq-name" required value="${esc(item?.name||'')}" placeholder="Ej: Vendas elásticas" class="input-field" /></div>
+        <div><label class="form-label">Nombre *</label><input id="bq-name" required value="${esc(item?.name||'')}" placeholder="Ej: Pregalex" class="input-field" /></div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="form-label">Categoría</label>
             <select id="bq-category" class="input-field">${categories.map(c=>`<option ${c===item?.category?'selected':''}>${c}</option>`).join('')}</select>
@@ -186,6 +189,15 @@ export function openBotiquinItemModal(itemId) {
           <div><label class="form-label">Unidad</label>
             <select id="bq-unit" class="input-field">${units.map(u=>`<option ${u===item?.unit?'selected':''}>${u}</option>`).join('')}</select>
           </div>
+          <div><label class="form-label">Dosis / concentración (opcional)</label><input id="bq-dose-val" type="number" min="0" step="0.1" placeholder="Ej: 75" value="${item?.doseVal??''}" class="input-field" /></div>
+          <div><label class="form-label">&nbsp;</label>
+            <select id="bq-dose-unit" class="input-field">${doseUnits.map(u=>`<option ${u===item?.doseUnit?'selected':''}>${u}</option>`).join('')}</select>
+          </div>
+        </div>
+        <p class="text-xs text-gray-400 -mt-1">La dosis es por unidad (ej: cada comprimido de Pregalex es de 75 mg) — distinto de la cantidad en stock de arriba.</p>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="form-label">Costo (CLP, opcional)</label><input id="bq-cost" type="number" min="0" placeholder="0" value="${item?.cost??''}" class="input-field" /></div>
+          <div><label class="form-label">Fecha de compra</label><input id="bq-purchase" type="date" value="${item?.purchaseDate||todayStr()}" class="input-field" /></div>
         </div>
         <div><label class="form-label">Fecha de caducidad (opcional)</label><input id="bq-expiry" type="date" value="${item?.expiryDate||''}" class="input-field" /></div>
         <div><label class="form-label">Notas</label><textarea id="bq-notes" rows="2" class="input-field resize-none">${esc(item?.notes||'')}</textarea></div>
@@ -202,30 +214,38 @@ export async function saveBotiquinItem(e, itemId) {
   const g = id => document.getElementById(id)?.value;
   const name = g('bq-name'), category = g('bq-category'), petId = g('bq-pet') || null;
   const quantity = parseFloat(g('bq-qty') || 0), unit = g('bq-unit');
+  const doseVal = g('bq-dose-val') || null, doseUnit = g('bq-dose-unit');
+  const cost = g('bq-cost') || null, purchaseDate = g('bq-purchase') || null;
   const expiryDate = g('bq-expiry') || null, notes = g('bq-notes');
   const status = botiquinStatus({ quantity });
+  const local = { name, category, petId, quantity, unit, doseVal, doseUnit, cost, purchaseDate, expiryDate, notes, status };
   state.botiquin = state.botiquin || [];
   if (isDemoUser()) {
     if (itemId) {
       const item = state.botiquin.find(i => i.id === itemId);
-      if (item) Object.assign(item, { name, category, petId, quantity, unit, expiryDate, notes, status });
+      if (item) Object.assign(item, local);
     } else {
-      state.botiquin.push({ id: genId(), name, category, petId, quantity, unit, expiryDate, notes, status });
+      state.botiquin.push({ id: genId(), ...local });
     }
   } else if (itemId) {
     const { error } = await sb.from('botiquin_items').update({
-      name, type: category, pet_id: petId, quantity, unit, expiry_date: expiryDate, notes
+      name, type: category, pet_id: petId, quantity, unit,
+      dose_val: doseVal, dose_unit: doseUnit, cost, purchase_date: purchaseDate,
+      expiry_date: expiryDate, notes
     }).eq('id', itemId);
     if (error) { showToast('Error al guardar', 'error'); console.error(error); return; }
     const item = state.botiquin.find(i => i.id === itemId);
-    if (item) Object.assign(item, { name, category, petId, quantity, unit, expiryDate, notes, status });
+    if (item) Object.assign(item, local);
   } else {
     const { data, error } = await sb.from('botiquin_items').insert({
-      user_id: state.user.id, name, type: category, pet_id: petId, quantity, unit, expiry_date: expiryDate, notes
+      user_id: state.user.id, name, type: category, pet_id: petId, quantity, unit,
+      dose_val: doseVal, dose_unit: doseUnit, cost, purchase_date: purchaseDate,
+      expiry_date: expiryDate, notes
     }).select().single();
     if (error) { showToast('Error al guardar', 'error'); console.error(error); return; }
     state.botiquin.push({ id: data.id, petId: data.pet_id, name: data.name, category: data.type,
-      quantity: data.quantity, unit: data.unit, expiryDate: data.expiry_date, notes: data.notes, status });
+      quantity: data.quantity, unit: data.unit, doseVal: data.dose_val, doseUnit: data.dose_unit,
+      cost: data.cost, purchaseDate: data.purchase_date, expiryDate: data.expiry_date, notes: data.notes, status });
   }
   closeModal(); render();
   showToast('Producto guardado', 'success');

@@ -264,6 +264,7 @@ export function viewFinance() {
       if (avgMonthly === 0) return '';
 
       // Compare last month vs prev month (maneja el cruce de año con Date en vez de aritmética de string)
+      const now = new Date();
       const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
       const lastMonthStr = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth()+1).padStart(2,'0')}`;

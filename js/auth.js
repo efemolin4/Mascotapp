@@ -555,6 +555,9 @@ export function loadDemoAndLogin() {
       { id: genId(), name: 'Vendas elásticas', category: 'Vendaje', petId: null, quantity: 3, unit: 'unidades', expiryDate: null, notes: '', status: 'disponible' },
       { id: genId(), name: 'Jeringas 5ml', category: 'Accesorio', petId: null, quantity: 4, unit: 'unidades', expiryDate: dt(2027,3,1), notes: '', status: 'por_agotarse' },
       { id: genId(), name: 'Suero fisiológico', category: 'Higiene', petId: null, quantity: 0, unit: 'frascos', expiryDate: dt(2026,10,1), notes: 'Reponer en próxima compra', status: 'agotado' },
+      { id: genId(), name: 'Pregalex', category: 'Medicamento', petId: 'pet-greta', quantity: 20, unit: 'comprimidos',
+        doseVal: 75, doseUnit: 'mg', cost: 14500, purchaseDate: daysFromNowStr(-10),
+        expiryDate: dt(2027,6,1), notes: 'Para el manejo de dolor crónico de Greta', status: 'disponible' },
     ],
   };
 

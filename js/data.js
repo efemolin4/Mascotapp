@@ -114,7 +114,8 @@ async function loadDataFromSupabase() {
     // store botiquin separately (not inside pet objects)
     state.botiquin = (botRes.data || []).map(b => ({
       id: b.id, petId: b.pet_id, name: b.name, category: b.type,
-      quantity: b.quantity, unit: b.unit, expiryDate: b.expiry_date,
+      quantity: b.quantity, unit: b.unit, doseVal: b.dose_val, doseUnit: b.dose_unit,
+      cost: b.cost, purchaseDate: b.purchase_date, expiryDate: b.expiry_date,
       notes: b.notes }));
 
   } catch(err) {
@@ -165,11 +166,12 @@ function getAgendaEvents() {
   return [...manual, ...synth];
 }
 
-// El campo "Costo (CLP)" de vacunas, desparasitaciones, tratamientos e historial
-// clínico vive solo en esas tablas — nunca se refleja en Finanzas por sí solo,
-// que hasta ahora solo mostraba lo cargado manualmente con "Registrar gasto".
-// Esta función junta ambas fuentes para que un costo cargado desde la ficha de
-// la mascota también cuente en el total y aparezca en el listado.
+// El campo "Costo (CLP)" de vacunas, desparasitaciones, tratamientos, historial
+// clínico y productos del botiquín vive solo en esas tablas — nunca se refleja
+// en Finanzas por sí solo, que hasta ahora solo mostraba lo cargado
+// manualmente con "Registrar gasto". Esta función junta todas las fuentes para
+// que un costo cargado desde la ficha de la mascota o el botiquín también
+// cuente en el total y aparezca en el listado.
 function getFinanceExpenses() {
   const manual = (state.expenses || []).map(e => ({ ...e, source: 'manual' }));
   const synth = [];
@@ -187,6 +189,10 @@ function getFinanceExpenses() {
       id: 'his-'+h.id, petId: pet.id, pet: pet.name, date: h.date, category: 'Veterinaria',
       amount: h.cost, description: h.title, source: 'history' }); });
   });
+  (state.botiquin || []).forEach(item => { if (Number(item.cost) > 0) synth.push({
+    id: 'bot-'+item.id, petId: item.petId, pet: (state.pets||[]).find(p => p.id === item.petId)?.name || null,
+    date: item.purchaseDate || todayStr(), category: 'Medicamentos',
+    amount: item.cost, description: `Botiquín: ${item.name}`, source: 'botiquin' }); });
   return [...manual, ...synth];
 }
 
