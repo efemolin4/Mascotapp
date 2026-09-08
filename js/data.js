@@ -167,11 +167,12 @@ function getAgendaEvents() {
 }
 
 // El campo "Costo (CLP)" de vacunas, desparasitaciones, tratamientos, historial
-// clínico y productos del botiquín vive solo en esas tablas — nunca se refleja
-// en Finanzas por sí solo, que hasta ahora solo mostraba lo cargado
-// manualmente con "Registrar gasto". Esta función junta todas las fuentes para
-// que un costo cargado desde la ficha de la mascota o el botiquín también
-// cuente en el total y aparezca en el listado.
+// clínico, productos del botiquín y alimento (pestaña Nutrición) vive solo en
+// esas tablas — nunca se refleja en Finanzas por sí solo, que hasta ahora solo
+// mostraba lo cargado manualmente con "Registrar gasto". Esta función junta
+// todas las fuentes para que un costo cargado desde la ficha de la mascota,
+// el botiquín o el alimento también cuente en el total y aparezca en el
+// listado.
 function getFinanceExpenses() {
   const manual = (state.expenses || []).map(e => ({ ...e, source: 'manual' }));
   const synth = [];
@@ -188,6 +189,9 @@ function getFinanceExpenses() {
     (pet.clinicalHistory || []).forEach(h => { if (Number(h.cost) > 0) synth.push({
       id: 'his-'+h.id, petId: pet.id, pet: pet.name, date: h.date, category: 'Veterinaria',
       amount: h.cost, description: h.title, source: 'history' }); });
+    (pet.foodItems || []).forEach(f => { if (Number(f.price) > 0) synth.push({
+      id: 'food-'+f.id, petId: pet.id, pet: pet.name, date: f.purchaseDate || todayStr(), category: 'Alimentación',
+      amount: f.price, description: `Alimento: ${f.product}`, source: 'food' }); });
   });
   (state.botiquin || []).forEach(item => { if (Number(item.cost) > 0) synth.push({
     id: 'bot-'+item.id, petId: item.petId, pet: (state.pets||[]).find(p => p.id === item.petId)?.name || null,
