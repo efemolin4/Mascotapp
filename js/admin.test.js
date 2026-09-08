@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { makeMockSb } from '../test/mockSupabase.js';
-import { applyPlanChange } from './admin.js';
+import '../js/utils.js';
+import '../js/app.js'; // deja PREMIUM_PRICE_CLP/fmtCLP/statCard/appShell/icon reales en window
+import { applyPlanChange, viewAdmin } from './admin.js';
 
 describe('applyPlanChange', () => {
   beforeEach(() => {
@@ -34,5 +36,77 @@ describe('applyPlanChange', () => {
     window.sb = makeMockSb();
     await applyPlanChange('user-1');
     expect(window.sb.from).not.toHaveBeenCalled();
+  });
+});
+
+// Cobertura del dashboard de métricas de negocio (MRR + conversión a
+// Premium) agregado a viewAdmin(). MRR usa PREMIUM_PRICE_CLP como única
+// fuente de verdad del precio — antes "$2.000/mes" estaba tipeado a mano
+// en 2 lugares de este archivo (tarjeta de Planes y modal de cambio de
+// plan), la misma clase de duplicación que ya causó bugs en otras partes
+// de la app.
+describe('viewAdmin — dashboard de métricas de negocio', () => {
+  it('calcula el MRR como usuarios premium × PREMIUM_PRICE_CLP', () => {
+    window.state = {
+      user: { isAdmin: true },
+      adminTab: 'dashboard',
+      adminData: {
+        profiles: [
+          { id: 'u1', plan: 'free', created_at: '2026-01-01' },
+          { id: 'u2', plan: 'premium', created_at: '2026-01-01' },
+          { id: 'u3', plan: 'premium', created_at: '2026-01-01' },
+        ],
+        pets: [],
+      },
+    };
+    const html = viewAdmin();
+    // 2 usuarios premium × 2000 = 4.000
+    expect(html).toContain('$4.000');
+  });
+
+  it('calcula la conversión como % de usuarios que hoy son premium', () => {
+    window.state = {
+      user: { isAdmin: true },
+      adminTab: 'dashboard',
+      adminData: {
+        profiles: [
+          { id: 'u1', plan: 'free', created_at: '2026-01-01' },
+          { id: 'u2', plan: 'free', created_at: '2026-01-01' },
+          { id: 'u3', plan: 'free', created_at: '2026-01-01' },
+          { id: 'u4', plan: 'premium', created_at: '2026-01-01' },
+        ],
+        pets: [],
+      },
+    };
+    const html = viewAdmin();
+    // 1 de 4 = 25%
+    expect(html).toContain('25%');
+  });
+
+  it('sin usuarios, la conversión es 0% (no NaN/Infinity)', () => {
+    window.state = {
+      user: { isAdmin: true },
+      adminTab: 'dashboard',
+      adminData: { profiles: [], pets: [] },
+    };
+    const html = viewAdmin();
+    expect(html).toContain('0%');
+    expect(html).not.toContain('NaN');
+  });
+
+  it('el precio de Premium en la pestaña Planes y en el modal usa la misma constante que el MRR', () => {
+    window.state = { user: { isAdmin: true }, adminTab: 'planes', adminData: { profiles: [], pets: [] } };
+    const planesHtml = viewAdmin();
+    expect(planesHtml).toContain('$2.000');
+
+    document.body.innerHTML = '';
+    window.openModal = (html) => { document.body.innerHTML = html; };
+    window.esc = (s) => s;
+    window.closeModal = () => {};
+    // openChangePlanModal no se importa acá para no ensuciar el describe de
+    // applyPlanChange de arriba con más imports — se prueba indirectamente
+    // vía window, ya asignado por el propio módulo al importarse.
+    window.openChangePlanModal('u1', 'Ana', 'free');
+    expect(document.body.innerHTML).toContain('$2.000');
   });
 });

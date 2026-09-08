@@ -26,6 +26,12 @@ export const VACCINES_BY_SPECIES = {
 // blockIfNotPremium() más abajo).
 export const PLAN_PET_LIMITS = { free: 1, premium: 5 };
 export const PLAN_LABELS = { free: 'Free', premium: 'Premium' };
+// Única fuente de verdad del precio — antes "$2.000/mes" estaba tipeado a
+// mano en 2 lugares de js/admin.js (la tarjeta de Planes y el modal de
+// cambio de plan), la misma clase de duplicación que ya causó bugs de
+// desincronización en otras partes de la app. También se usa para calcular
+// el MRR en el dashboard del admin.
+export const PREMIUM_PRICE_CLP = 2000;
 
 // ---- PERIODICIDADES ----
 export const PERIODICITY_OPTIONS = [
@@ -763,7 +769,7 @@ if (typeof window !== 'undefined') {
     resolveInitialViewFromUrl, navigate, iconSVG, icon, sidebar, bottomNav,
     appShell, pageHeader, statCard, petAvatar, emptyState, noPetsOnboarding,
     openModal, closeModal, injectStyles, render, initApp,
-    sb, VACCINES_BY_SPECIES, PLAN_PET_LIMITS, PLAN_LABELS, PERIODICITY_OPTIONS,
+    sb, VACCINES_BY_SPECIES, PLAN_PET_LIMITS, PLAN_LABELS, PREMIUM_PRICE_CLP, PERIODICITY_OPTIONS,
     BREEDS, PAGE_SIZE, defaultState, ROUTE_PATHS, AUTH_VIEWS, SYMPTOM_TAGS,
     ACTIVITY_LEVELS, state,
   });

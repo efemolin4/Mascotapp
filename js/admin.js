@@ -21,6 +21,15 @@ export function viewAdmin() {
   const totalUsers  = profiles.length;
   const totalPets   = allPets.length;
   const paidUsers   = profiles.filter(p => p.plan === 'premium').length;
+  // Métricas de negocio: MRR es exacto (todo Premium paga lo mismo, no hay
+  // anual/descuentos todavía). La conversión es una foto del estado ACTUAL
+  // (% de usuarios que hoy son Premium) — no un embudo por cohorte, porque
+  // no existe historial de cambios de plan (applyPlanChange() sobrescribe
+  // sin dejar rastro); si se agrega una tabla de auditoría más adelante,
+  // esto se puede refinar a "conversión de los que se registraron hace N
+  // días".
+  const mrr = paidUsers * PREMIUM_PRICE_CLP;
+  const conversionPct = totalUsers > 0 ? Math.round((paidUsers / totalUsers) * 100) : 0;
 
   const speciesDist = allPets.reduce((acc, p) => { acc[p.species] = (acc[p.species]||0)+1; return acc; }, {});
 
@@ -46,6 +55,13 @@ export function viewAdmin() {
 
   const tabContent = () => {
     if (tab === 'dashboard') return `
+      <div class="mb-6">
+        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Métricas de negocio</h3>
+        <div class="grid grid-cols-2 gap-4">
+          ${statCard(icon('money','w-5 h-5 md:w-6 md:h-6'), 'MRR (ingreso mensual)', fmtCLP(mrr), 'teal')}
+          ${statCard(icon('chartBar','w-5 h-5 md:w-6 md:h-6'), 'Conversión a Premium', conversionPct + '%', 'brand')}
+        </div>
+      </div>
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         ${statCard(icon('users','w-5 h-5 md:w-6 md:h-6'), 'Usuarios', totalUsers, 'brand')}
         ${statCard(icon('paw','w-5 h-5 md:w-6 md:h-6'), 'Mascotas', totalPets, 'teal')}
@@ -122,7 +138,7 @@ export function viewAdmin() {
       <div class="grid md:grid-cols-2 gap-4 max-w-2xl">
         ${[
           { id:'free',    name:'Free',    price:'$0',        features:['1 mascota','Fichas, vacunas, desparasitaciones y tratamientos','Historial clínico','Agenda y alertas','Finanzas básicas (lista y total)','Seguimiento y Nutrición','1 archivo adjunto por evento del historial'] },
-          { id:'premium', name:'Premium', price:'$2.000/mes',features:['5 mascotas','Todo lo de Free','Compartir con un segundo tutor','Finanzas avanzada (gráficos y predicción)','Exportar expediente en PDF','Botiquín del hogar','Adjuntos ilimitados en el historial'] },
+          { id:'premium', name:'Premium', price:fmtCLP(PREMIUM_PRICE_CLP)+'/mes',features:['5 mascotas','Todo lo de Free','Compartir con un segundo tutor','Finanzas avanzada (gráficos y predicción)','Exportar expediente en PDF','Botiquín del hogar','Adjuntos ilimitados en el historial'] },
         ].map(p => {
           const cnt = profiles.filter(u=>(u.plan||'free')===p.id).length;
           return '<div class="bg-white rounded-2xl shadow-sm p-5 border-2 '+(p.id==='premium'?'border-brand-400':'border-transparent')+'"><div class="mb-3">'+(p.id==='premium'?'<span class="text-[10px] bg-brand-500 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Popular</span>':'')+'<h3 class="font-bold text-gray-900 text-lg mt-1">'+p.name+'</h3><p class="text-2xl font-black text-gray-900 mt-1">'+p.price+'</p></div><ul class="space-y-1.5 mb-4">'+p.features.map(f=>'<li class="flex items-start gap-2 text-sm text-gray-600"><span class="text-green-500 mt-0.5">✓</span>'+f+'</li>').join('')+'</ul><div class="pt-3 border-t border-gray-100 text-xs text-gray-400">'+cnt+' usuario'+(cnt!==1?'s':'')+' activo'+(cnt!==1?'s':'')+'</div></div>';
@@ -145,7 +161,7 @@ export function viewAdmin() {
 export async function openChangePlanModal(userId, userName, currentPlan) {
   const plans = [
     { id:'free',    label:'Free',    desc:'Gratis' },
-    { id:'premium', label:'Premium', desc:'$2.000/mes' },
+    { id:'premium', label:'Premium', desc:fmtCLP(PREMIUM_PRICE_CLP)+'/mes' },
   ];
   openModal('<div class="modal-box p-5"><h3 class="text-lg font-bold text-gray-900 mb-1">Cambiar plan</h3><p class="text-sm text-gray-500 mb-4">Usuario: <strong>'+esc(userName)+'</strong></p><div class="space-y-2 mb-5">'+plans.map(p=>'<label class="flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all '+(p.id===currentPlan?'border-brand-400 bg-brand-50':'border-gray-100 hover:border-gray-200')+'"><input type="radio" name="new-plan" value="'+p.id+'" '+(p.id===currentPlan?'checked':'')+' class="accent-brand-600"><div class="flex-1"><div class="font-semibold text-sm text-gray-900">'+p.label+'</div><div class="text-xs text-gray-400">'+p.desc+'</div></div></label>').join('')+'</div><div class="flex gap-3"><button onclick="closeModal()" class="btn-secondary flex-1">Cancelar</button><button onclick="applyPlanChange(\''+userId+'\')" class="btn-primary flex-1">Guardar</button></div></div>');
 }
