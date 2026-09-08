@@ -381,7 +381,7 @@ export function viewPetProfile() {
           style="background:linear-gradient(to left,rgba(255,255,255,1),rgba(255,255,255,0))"></div>
       </div>
 
-      <div class="animate-fade-in">
+      <div class="pet-tab-content animate-fade-in">
         ${tab === 'general'        ? tabGeneral(pet)         : ''}
         ${tab === 'vacunas'        ? tabVaccines(pet)        : ''}
         ${tab === 'desparasitación' ? tabDeworming(pet)      : ''}
@@ -955,14 +955,31 @@ export function updateBreedOptions(species) {
   select.innerHTML = breeds.map(b => `<option ${b==='Mestizo'?'selected':''}>${b}</option>`).join('');
 }
 
+// El expediente exportado siempre incluye las 5 secciones completas
+// (General, Vacunas, Desparasitaciones, Tratamiento, Historial) sin
+// importar en qué pestaña de la ficha estaba el usuario al hacer clic en
+// "Exportar" — antes el print imprimía la página detrás del modal, así
+// que el resultado dependía de la pestaña activa (ver pet-tab-content /
+// body:has(.modal-overlay) en injectStyles()).
 export function exportPetRecord(petId) {
   const pet = state.pets.find(p => p.id === petId);
   if (!pet) return;
   if (blockIfNotPremium('Exportar el expediente')) return;
-  const activeVaccines = (pet.vaccines || []).filter(v => v.nextDate && v.nextDate >= todayStr()).slice(0,5);
-  const activeMeds = (pet.medications || []).filter(m => m.active).slice(0,5);
-  const lastHistory = [...(pet.clinicalHistory || [])].sort((a,b)=>b.date>a.date?1:-1).slice(0,5);
   const vet = pet.vet || {};
+  const vaccines = [...(pet.vaccines||[])].sort((a,b)=>b.date>a.date?1:-1);
+  const dewormings = [...(pet.deworming||[])].sort((a,b)=>b.date>a.date?1:-1);
+  const meds = [...(pet.medications||[])].sort((a,b)=>b.startDate>a.startDate?1:-1);
+  const history = [...(pet.clinicalHistory||[])].sort((a,b)=>b.date>a.date?1:-1);
+
+  const printSection = (title, rows) => rows.length ? `
+    <div class="mb-4 break-inside-avoid">
+      <h5 class="font-semibold text-gray-700 text-sm mb-2 border-b border-gray-100 pb-1">${title}</h5>
+      <div class="space-y-1.5">${rows.join('')}</div>
+    </div>` : `
+    <div class="mb-4">
+      <h5 class="font-semibold text-gray-700 text-sm mb-2 border-b border-gray-100 pb-1">${title}</h5>
+      <p class="text-xs text-gray-400">Sin registros</p>
+    </div>`;
 
   openModal(`
     <div class="modal-box p-4 sm:p-6" id="export-record">
@@ -981,37 +998,36 @@ export function exportPetRecord(petId) {
           ${(pet.chronicConditions||[]).filter(c=>c!=='Ninguna').length ? `<p class="text-xs text-orange-600 font-medium">Condiciones: ${esc(pet.chronicConditions.join(', '))}</p>` : ''}
         </div>
 
-        ${vet.name ? `
-        <div class="mb-4">
-          <h5 class="font-semibold text-gray-700 text-sm mb-2">Veterinario</h5>
-          <p class="text-sm text-gray-600">${esc(vet.name)}${vet.clinic ? ` · ${esc(vet.clinic)}` : ''}</p>
-          ${vet.phone ? `<p class="text-xs text-gray-400 flex items-center gap-1">${icon('phone','w-3 h-3')} ${esc(vet.phone)}</p>` : ''}
-          ${vet.email ? `<p class="text-xs text-gray-400 flex items-center gap-1">${icon('mail','w-3 h-3')} ${esc(vet.email)}</p>` : ''}
-        </div>` : ''}
+        <div class="mb-4 break-inside-avoid">
+          <h5 class="font-semibold text-gray-700 text-sm mb-2 border-b border-gray-100 pb-1">General</h5>
+          <dl class="space-y-1 text-xs text-gray-600">
+            ${infoRow('Color', esc(pet.color))} ${infoRow('Tamaño', esc(pet.sizeRange))}
+            ${infoRow('Peso', pet.weightKg ? `${pet.weightKg} kg ${pet.weightGr||0} gr` : '—')}
+            ${infoRow('Nivel actividad', ['','Bajo','Medio','Alto'][pet.activityLevel]||'—')}
+          </dl>
+          ${vet.name ? `
+          <p class="text-xs text-gray-600 mt-2"><span class="font-medium">Veterinario:</span> ${esc(vet.name)}${vet.clinic ? ` · ${esc(vet.clinic)}` : ''}${vet.phone ? ` · ${esc(vet.phone)}` : ''}</p>` : ''}
+        </div>
 
-        ${activeVaccines.length ? `
-        <div class="mb-4">
-          <h5 class="font-semibold text-gray-700 text-sm mb-2">Vacunas vigentes</h5>
-          <div class="space-y-1">
-            ${activeVaccines.map(v => `<div class="text-xs bg-blue-50 rounded-lg p-2"><span class="font-medium">${esc(v.name)}</span> · Próxima: ${formatDate(v.nextDate)}</div>`).join('')}
-          </div>
-        </div>` : ''}
+        ${printSection('Vacunas', vaccines.map(v => `
+          <div class="text-xs bg-blue-50 rounded-lg p-2">
+            <span class="font-medium">${esc(v.name)}</span> · Aplicada: ${formatDate(v.date)}${v.nextDate ? ` · Próxima: ${formatDate(v.nextDate)}` : ''}${v.code ? ` · Código: ${esc(v.code)}` : ''}
+          </div>`))}
 
-        ${activeMeds.length ? `
-        <div class="mb-4">
-          <h5 class="font-semibold text-gray-700 text-sm mb-2">Medicamentos activos</h5>
-          <div class="space-y-1">
-            ${activeMeds.map(m => `<div class="text-xs bg-green-50 rounded-lg p-2"><span class="font-medium">${esc(m.name)}</span> · ${esc(m.dose)} · ${esc(m.frequency)}</div>`).join('')}
-          </div>
-        </div>` : ''}
+        ${printSection('Desparasitaciones', dewormings.map(d => `
+          <div class="text-xs bg-teal-50 rounded-lg p-2">
+            <span class="font-medium">${esc(d.product)}</span> (${esc(d.type)}) · ${esc(d.format)} · Dosis: ${esc(d.dose)} ${esc(d.unit)} · ${formatDate(d.date)}${d.nextDate ? ` · Próxima: ${formatDate(d.nextDate)}` : ''}
+          </div>`))}
 
-        ${lastHistory.length ? `
-        <div class="mb-4">
-          <h5 class="font-semibold text-gray-700 text-sm mb-2">Últimos eventos clínicos</h5>
-          <div class="space-y-1">
-            ${lastHistory.map(h => `<div class="text-xs bg-gray-50 rounded-lg p-2"><span class="font-medium">${formatDate(h.date)}</span> · ${esc(h.title)}${h.doctor ? ` · ${esc(h.doctor)}` : ''}</div>`).join('')}
-          </div>
-        </div>` : ''}
+        ${printSection('Tratamiento', meds.map(m => `
+          <div class="text-xs bg-green-50 rounded-lg p-2">
+            <span class="font-medium">${esc(m.name)}</span> ${m.active ? '· Activo' : '· Finalizado'} · ${esc(m.dose || `${m.doseVal||''} ${m.doseUnit||''}`)} · ${esc(m.frequency)} · ${formatDate(m.startDate)}${m.endDate ? ` → ${formatDate(m.endDate)}` : ''}
+          </div>`))}
+
+        ${printSection('Historial clínico', history.map(h => `
+          <div class="text-xs bg-gray-50 rounded-lg p-2">
+            <span class="font-medium">${formatDate(h.date)}</span> · ${esc(h.title)} (${esc(h.type)})${h.doctor ? ` · ${esc(h.doctor)}` : ''}${h.notes ? `<br>${esc(h.notes)}` : ''}${h.cost ? `<br>Costo: ${fmtCLP(h.cost)}` : ''}${(h.files||[]).length ? `<br>${h.files.length} archivo${h.files.length!==1?'s':''} adjunto${h.files.length!==1?'s':''}` : ''}
+          </div>`))}
 
         <p class="text-xs text-gray-300 text-right mt-4">Generado por MyPets 3.0 · ${new Date().toLocaleDateString('es-CL')}</p>
       </div>

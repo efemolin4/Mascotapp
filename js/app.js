@@ -570,6 +570,11 @@ export function injectStyles() {
       .modal-overlay { position:static !important; background:none !important; overflow:visible !important; }
       .modal-box { box-shadow:none !important; max-height:none !important; border-radius:0 !important; }
       aside, nav, .modal-overlay > div > div:last-child { display:none !important; }
+      /* Al imprimir el expediente desde el modal "Exportar", oculta la
+         ficha de la mascota que queda detrás — si no, el print mezclaba
+         la pestaña activa (General, Vacunas, etc.) con el contenido del
+         modal, dando un resultado distinto según en qué pestaña estabas. */
+      body:has(.modal-overlay) .pet-tab-content { display: none !important; }
     }
   `;
   document.head.appendChild(style);
