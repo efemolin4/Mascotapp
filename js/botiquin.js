@@ -196,7 +196,7 @@ export function openBotiquinItemModal(itemId) {
         </div>
         <p class="text-xs text-gray-400 -mt-1">La dosis es por unidad (ej: cada comprimido de Pregalex es de 75 mg) — distinto de la cantidad en stock de arriba.</p>
         <div class="grid grid-cols-2 gap-3">
-          <div><label class="form-label">Costo (CLP, opcional)</label><input id="bq-cost" type="number" min="0" placeholder="0" value="${item?.cost??''}" class="input-field" /></div>
+          <div><label class="form-label">Costo (CLP, opcional)</label><input id="bq-cost" type="text" inputmode="numeric" placeholder="0" value="${item?.cost??''}" class="input-field" /></div>
           <div><label class="form-label">Fecha de compra</label><input id="bq-purchase" type="date" value="${item?.purchaseDate||todayStr()}" class="input-field" /></div>
         </div>
         <div><label class="form-label">Fecha de caducidad (opcional)</label><input id="bq-expiry" type="date" value="${item?.expiryDate||''}" class="input-field" /></div>
@@ -215,7 +215,7 @@ export async function saveBotiquinItem(e, itemId) {
   const name = g('bq-name'), category = g('bq-category'), petId = g('bq-pet') || null;
   const quantity = parseFloat(g('bq-qty') || 0), unit = g('bq-unit');
   const doseVal = g('bq-dose-val') || null, doseUnit = g('bq-dose-unit');
-  const cost = g('bq-cost') || null, purchaseDate = g('bq-purchase') || null;
+  const cost = parseCLP(g('bq-cost')), purchaseDate = g('bq-purchase') || null;
   const expiryDate = g('bq-expiry') || null, notes = g('bq-notes');
   const status = botiquinStatus({ quantity });
   const local = { name, category, petId, quantity, unit, doseVal, doseUnit, cost, purchaseDate, expiryDate, notes, status };

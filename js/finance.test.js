@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { makeMockSb } from '../test/mockSupabase.js';
+import '../js/utils.js';   // deja parseCLP real en window
 import { saveExpense, deleteExpense } from './finance.js';
 
 describe('saveExpense', () => {
@@ -32,6 +33,21 @@ describe('saveExpense', () => {
     await saveExpense({ preventDefault: () => {} });
     expect(window.state.expenses).toHaveLength(0);
     expect(window.showToast).toHaveBeenCalledWith('Error al guardar gasto', 'error');
+  });
+
+  it('convierte "190.000" tipeado en el campo a 190000 antes de mandarlo a Supabase (regresión del bug real)', async () => {
+    // Bug real: el campo era type="number", que interpreta "190.000" como
+    // el número 190 (punto = decimal), y ese string se mandaba tal cual a
+    // una columna integer — Supabase rechazaba el insert completo con
+    // "invalid input syntax for type integer". Ahora el campo es texto y
+    // se parsea con parseCLP() antes de armar el payload.
+    document.getElementById('ex-amount').value = '190.000';
+    window.sb = makeMockSb({
+      expenses: { data: { id: 'exp-2', pet_id: 'pet-1', date: '2026-05-01', category: 'Veterinaria', amount: 190000, description: 'Consulta' }, error: null },
+    });
+    await saveExpense({ preventDefault: () => {} });
+    const insertedPayload = window.sb.from.mock.results[0].value.insert.mock.calls[0][0];
+    expect(insertedPayload.amount).toBe(190000);
   });
 });
 

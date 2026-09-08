@@ -143,7 +143,7 @@ export function openVaccineModal(petId) {
         </div>
         <div>
           <label class="form-label">Costo (CLP)</label>
-          <input id="v-cost" type="number" min="0" placeholder="0" class="input-field" />
+          <input id="v-cost" type="text" inputmode="numeric" placeholder="0" class="input-field" />
         </div>
         <div class="flex gap-3 pt-2">
           <button type="button" onclick="closeModal()" class="btn-secondary flex-1">Cancelar</button>
@@ -227,7 +227,7 @@ export function openDewormModal(petId) {
 
         <div>
           <label class="form-label">Costo (CLP)</label>
-          <input id="d-cost" type="number" min="0" placeholder="0" class="input-field" />
+          <input id="d-cost" type="text" inputmode="numeric" placeholder="0" class="input-field" />
         </div>
 
         <div class="flex gap-3 pt-2">
@@ -247,7 +247,7 @@ export async function saveVaccine(e, petId) {
   const date = g('v-date'), period = g('v-period');
   const nextDate = period ? addMonths(date, parseFloat(period)) : '';
   const vaccine = { name: g('v-name'), code: g('v-code'), date, periodicity: period,
-    nextDate, alertType: g('v-alert'), alertDays: g('v-alert-days') || null, cost: g('v-cost') || null };
+    nextDate, alertType: g('v-alert'), alertDays: g('v-alert-days') || null, cost: parseCLP(g('v-cost')) };
   pet.vaccines = pet.vaccines || [];
   if (isDemoUser()) {
     pet.vaccines.push({ id: genId(), ...vaccine });
@@ -285,7 +285,7 @@ export async function saveDeworming(e, petId) {
   const unitMap = { Comprimido:'Comprimido(s)', Pipeta:'ML', Collar:'Unidad(es)', Spray:'ML', Jarabe:'ML', Inyección:'ML' };
   const deworming = { product: g('d-product'), type: g('d-type'), format, dose: g('d-dose'),
     unit: unitMap[format] || '', date, periodicity: period,
-    nextDate, alertType: g('d-alert'), alertDays: g('d-alert-days') || null, cost: g('d-cost') || null };
+    nextDate, alertType: g('d-alert'), alertDays: g('d-alert-days') || null, cost: parseCLP(g('d-cost')) };
   pet.deworming = pet.deworming || [];
   if (isDemoUser()) {
     pet.deworming.push({ id: genId(), ...deworming });
@@ -376,7 +376,7 @@ export function openEditVaccineModal(petId, vaccineId) {
               ${PERIODICITY_OPTIONS.map(o => `<option value="${o.months}" ${String(o.months)===String(v.periodicity)?'selected':''}>${o.label}</option>`).join('')}
             </select>
           </div>
-          <div><label class="form-label">Costo (CLP)</label><input id="ev-cost" type="number" min="0" value="${v.cost||''}" class="input-field" /></div>
+          <div><label class="form-label">Costo (CLP)</label><input id="ev-cost" type="text" inputmode="numeric" value="${v.cost||''}" class="input-field" /></div>
         </div>
         <div>
           <label class="form-label">¿Cuándo recibir la alerta?</label>
@@ -420,7 +420,7 @@ export async function saveEditVaccine(e, petId, vaccineId) {
   if (blockIfReadOnly(pet)) return;
   const g = id => document.getElementById(id)?.value;
   const date = g('ev-date'), period = g('ev-period');
-  const name = g('ev-name'), code = g('ev-code'), cost = g('ev-cost') || null;
+  const name = g('ev-name'), code = g('ev-code'), cost = parseCLP(g('ev-cost'));
   const alertType = g('ev-alert'), alertDays = g('ev-alert-days') || null;
   const nextDate = period ? addMonths(date, parseFloat(period)) : '';
   if (!isDemoUser()) {
@@ -464,7 +464,7 @@ export function openEditDewormModal(petId, dewormId) {
               ${PERIODICITY_OPTIONS.map(o => `<option value="${o.months}" ${String(o.months)===String(d.periodicity)?'selected':''}>${o.label}</option>`).join('')}
             </select>
           </div>
-          <div><label class="form-label">Costo (CLP)</label><input id="edw-cost" type="number" min="0" value="${d.cost||''}" class="input-field" /></div>
+          <div><label class="form-label">Costo (CLP)</label><input id="edw-cost" type="text" inputmode="numeric" value="${d.cost||''}" class="input-field" /></div>
         </div>
         <div>
           <label class="form-label">¿Cuándo recibir la alerta?</label>
@@ -508,7 +508,7 @@ export async function saveEditDeworming(e, petId, dewormId) {
   if (blockIfReadOnly(pet)) return;
   const g = id => document.getElementById(id)?.value;
   const product = g('edw-product'), type = g('edw-type'), format = g('edw-format');
-  const dose = g('edw-dose'), date = g('edw-date'), cost = g('edw-cost') || null;
+  const dose = g('edw-dose'), date = g('edw-date'), cost = parseCLP(g('edw-cost'));
   const period = g('edw-period');
   const alertType = g('edw-alert'), alertDays = g('edw-alert-days') || null;
   const nextDate = period ? addMonths(date, parseFloat(period)) : '';

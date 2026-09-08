@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   todayStr, daysFromNowStr, addDays, daysBetween, addMonths, getAge,
-  careAlertStatus, medStockStatus, foodStockStatus, esc,
+  careAlertStatus, medStockStatus, foodStockStatus, esc, parseCLP,
 } from './utils.js';
 
 // Fija "hoy" a una fecha conocida para que las pruebas de fecha sean
@@ -165,5 +165,32 @@ describe('esc', () => {
 
   it('convierte valores no-string (números) a texto', () => {
     expect(esc(42)).toBe('42');
+  });
+});
+
+describe('parseCLP', () => {
+  it('interpreta el punto como separador de miles, no decimal (regresión del bug real)', () => {
+    // Bug real: un usuario escribió "190.000" esperando $190.000 en un campo
+    // type="number", que lo interpretó como 190 y Supabase rechazó el string
+    // "190.000" contra una columna integer con "invalid input syntax".
+    expect(parseCLP('190.000')).toBe(190000);
+  });
+
+  it('un número sin separadores queda igual', () => {
+    expect(parseCLP('190000')).toBe(190000);
+  });
+
+  it('ignora comas también, por si acaso', () => {
+    expect(parseCLP('190,000')).toBe(190000);
+  });
+
+  it('string vacío, null o undefined dan null (costo opcional, no 0)', () => {
+    expect(parseCLP('')).toBeNull();
+    expect(parseCLP(null)).toBeNull();
+    expect(parseCLP(undefined)).toBeNull();
+  });
+
+  it('ignora cualquier caracter no numérico (signos, espacios)', () => {
+    expect(parseCLP('$ 25.000 CLP')).toBe(25000);
   });
 });

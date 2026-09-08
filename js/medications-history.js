@@ -218,7 +218,7 @@ export function openMedModal(petId) {
 
         <div>
           <label class="form-label">Costo (CLP)</label>
-          <input id="m-cost" type="number" min="0" placeholder="0" class="input-field" />
+          <input id="m-cost" type="text" inputmode="numeric" placeholder="0" class="input-field" />
         </div>
 
         <div>
@@ -295,7 +295,7 @@ export function openHistoryModal(petId) {
         </div>
         <div>
           <label class="form-label">Costo (CLP)</label>
-          <input id="h-cost" type="number" min="0" placeholder="0" class="input-field" />
+          <input id="h-cost" type="text" inputmode="numeric" placeholder="0" class="input-field" />
         </div>
         <div>
           <label class="form-label">Notas</label>
@@ -331,7 +331,7 @@ export async function saveMedication(e, petId) {
   const startDate = g('m-start'), startTime = g('m-start-time');
   const treatmentDays = g('m-days') ? parseInt(g('m-days')) : null;
   const active = document.getElementById('m-active')?.checked ?? true;
-  const cost = g('m-cost') || null;
+  const cost = parseCLP(g('m-cost'));
   const stockTotal = g('m-stock-total') || null, stockUnit = g('m-stock-unit');
   const expiry = g('m-expiry') || null;
   const reminder = g('m-reminder');
@@ -423,7 +423,7 @@ export async function saveHistory(e, petId) {
   const filesInput = document.getElementById('h-files');
   const files = filesInput?.files?.length ? await readFilesAsBase64(filesInput) : [];
   const record = { title: g('h-title'), type: g('h-type'), date: g('h-date'),
-    doctor: g('h-doctor'), clinic: g('h-clinic'), cost: g('h-cost') || null, notes: g('h-notes'), files };
+    doctor: g('h-doctor'), clinic: g('h-clinic'), cost: parseCLP(g('h-cost')), notes: g('h-notes'), files };
   pet.clinicalHistory = pet.clinicalHistory || [];
   if (isDemoUser()) {
     pet.clinicalHistory.push({ id: genId(), ...record });
@@ -603,7 +603,7 @@ export function openEditMedModal(petId, medId) {
           </div>
           <div><label class="form-label">Días tratamiento</label><input id="em-days" type="number" min="1" value="${m.treatmentDays||''}" class="input-field" /></div>
           <div><label class="form-label">Fecha caducidad</label><input id="em-expiry" type="date" value="${m.expiry||''}" class="input-field" /></div>
-          <div><label class="form-label">Costo (CLP)</label><input id="em-cost" type="number" min="0" value="${m.cost||''}" class="input-field" /></div>
+          <div><label class="form-label">Costo (CLP)</label><input id="em-cost" type="text" inputmode="numeric" value="${m.cost||''}" class="input-field" /></div>
         </div>
         <div>
           <label class="form-label flex items-center gap-1">${icon('bell','w-3.5 h-3.5')} Recordatorio por dosis</label>
@@ -653,7 +653,7 @@ export async function saveEditMedication(e, petId, medId) {
   const name = g('em-name'), doseVal = g('em-dose-val'), doseUnit = g('em-unit');
   const freqN = g('em-freq-n'), freqUnit = g('em-freq-unit');
   const frequency = freqN ? `Cada ${freqN} ${freqUnit === 'horas' ? 'horas' : 'días'}` : '';
-  const expiry = g('em-expiry') || null, cost = g('em-cost') || null;
+  const expiry = g('em-expiry') || null, cost = parseCLP(g('em-cost'));
   const stockTotal = g('em-stock-total') || null, stockUnit = g('em-stock-unit');
   const reminder = g('em-reminder');
   const active = document.getElementById('em-active')?.checked;
@@ -701,7 +701,7 @@ export function openEditHistoryModal(petId, histId) {
           <div><label class="form-label">Fecha *</label><input id="eh-date" type="date" required value="${h.date||''}" class="input-field" /></div>
           <div><label class="form-label">Médico</label><input id="eh-doctor" value="${esc(h.doctor||'')}" placeholder="Dr. García" class="input-field" /></div>
           <div><label class="form-label">Clínica</label><input id="eh-clinic" value="${esc(h.clinic||'')}" placeholder="Clínica Vet." class="input-field" /></div>
-          <div class="col-span-2"><label class="form-label">Costo (CLP)</label><input id="eh-cost" type="number" min="0" value="${h.cost||''}" class="input-field" /></div>
+          <div class="col-span-2"><label class="form-label">Costo (CLP)</label><input id="eh-cost" type="text" inputmode="numeric" value="${h.cost||''}" class="input-field" /></div>
           <div class="col-span-2"><label class="form-label">Notas</label><textarea id="eh-notes" rows="3" class="input-field resize-none">${esc(h.notes||'')}</textarea></div>
         </div>
         ${(h.files||[]).length > 0 ? `
@@ -763,7 +763,7 @@ export async function saveEditHistory(e, petId, histId) {
   const filesInput = document.getElementById('eh-files');
   const newFiles = filesInput?.files?.length ? await readFilesAsBase64(filesInput) : [];
   const title = g('eh-title'), type = g('eh-type'), date = g('eh-date');
-  const doctor = g('eh-doctor'), clinic = g('eh-clinic'), cost = g('eh-cost') || null, notes = g('eh-notes');
+  const doctor = g('eh-doctor'), clinic = g('eh-clinic'), cost = parseCLP(g('eh-cost')), notes = g('eh-notes');
   const files = [...(h.files||[]), ...newFiles];
   if (!isDemoUser()) {
     const { error } = await sb.from('history_records').update({

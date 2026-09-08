@@ -96,6 +96,22 @@ export function fmtCLP(n) {
   return Number(n || 0).toLocaleString('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 });
 }
 
+// Convierte el valor tipeado en un campo de costo (CLP) a un entero limpio
+// para guardar. Los campos de costo son type="text" (no type="number"): en
+// es-CL el "." es separador de miles, no decimal, y un usuario que escribe
+// "190.000" esperando 190 mil pesos — si el campo fuera type="number", el
+// navegador lo interpreta como 190.000 = doscientos noventa (!), y ese
+// string se mandaba tal cual a una columna integer de Supabase, tirando
+// "invalid input syntax for type integer". Acá se ignora cualquier
+// caracter que no sea dígito (separadores de miles, decimales, signos),
+// así que "190.000", "190000" y "190,000" dan todos 190000 — CLP no tiene
+// centavos, así que no hay ambigüedad real que perder.
+export function parseCLP(str) {
+  if (str === null || str === undefined) return null;
+  const digits = String(str).replace(/[^\d]/g, '');
+  return digits ? parseInt(digits, 10) : null;
+}
+
 // Escapa texto libre (nombres, notas, descripciones) antes de insertarlo como
 // contenido HTML o valor de atributo — toda la app arma su UI por
 // interpolación de strings + innerHTML sin sanitizar, así que un tutor
@@ -193,7 +209,7 @@ export function activityStreak(activities) {
 if (typeof window !== 'undefined') {
   Object.assign(window, {
     genId, formatDate, todayStr, daysFromNowStr, addMonths, addDays, daysBetween,
-    getAge, careAlertStatus, speciesEmoji, fmtCLP, esc, eventIcon, botiquinStatus,
+    getAge, careAlertStatus, speciesEmoji, fmtCLP, parseCLP, esc, eventIcon, botiquinStatus,
     medStockDaysRemaining, medStockStatus, foodDaysTotal, foodRunOutDate,
     foodStockStatus, activityStreak,
   });

@@ -301,7 +301,7 @@ export function openExpenseModal() {
       <form onsubmit="saveExpense(event)" class="space-y-3">
         <div><label class="form-label">Descripción *</label><input id="ex-desc" required placeholder="Ej: Consulta veterinaria" class="input-field" /></div>
         <div class="grid grid-cols-2 gap-3">
-          <div><label class="form-label">Monto (CLP) *</label><input id="ex-amount" type="number" required min="0" placeholder="0" class="input-field" /></div>
+          <div><label class="form-label">Monto (CLP) *</label><input id="ex-amount" type="text" inputmode="numeric" required placeholder="0" class="input-field" /></div>
           <div><label class="form-label">Fecha *</label><input id="ex-date" type="date" required value="${todayStr()}" class="input-field" /></div>
         </div>
         <div class="grid grid-cols-2 gap-3">
@@ -333,7 +333,7 @@ export async function saveExpense(e) {
     user_id: state.user.id,
     pet_id: g('ex-pet') || null,
     date: g('ex-date'), category: g('ex-cat'),
-    amount: g('ex-amount'), description: g('ex-desc')
+    amount: parseCLP(g('ex-amount')), description: g('ex-desc')
   }).select().single();
   if (error) { showToast('Error al guardar gasto', 'error'); return; }
   state.expenses.push({ id: data.id, petId: data.pet_id, pet: state.pets.find(p => p.id === data.pet_id)?.name || null,
