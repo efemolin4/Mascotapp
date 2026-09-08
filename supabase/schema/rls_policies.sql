@@ -1,18 +1,88 @@
 -- ============================================================
 -- MYPETS 3.0 — Foto de las políticas RLS en producción
 -- ============================================================
--- Generado a partir de `select * from pg_policies where schemaname = 'public'`
--- corrido en el SQL Editor de Supabase. Ver supabase/README.md para la
--- query exacta y cómo regenerar este archivo.
+-- Generado a partir de las 3 queries de introspección de
+-- supabase/README.md, corridas en el SQL Editor de Supabase.
 --
 -- Esto es una FOTO para auditoría y recuperación ante desastre, NO una
--- migración idempotente para correr — las políticas ya existen en
--- producción. Si necesitás reconstruir el esquema desde cero, revisá cada
--- CREATE POLICY antes de ejecutarlo (y creá antes las funciones
--- pet_accessible(pet_id), pet_editor(pet_id) e is_admin(), referenciadas
--- acá pero cuya definición todavía no está versionada — ver TODO al final).
+-- migración idempotente para correr — las políticas y funciones ya
+-- existen en producción. Si necesitás reconstruir el esquema desde cero,
+-- creá primero las 3 funciones de la sección de abajo (las políticas
+-- dependen de ellas) y después revisá cada CREATE POLICY antes de
+-- ejecutarlo.
 --
 -- Última actualización: 2026-09-08
+
+-- ============================================================
+-- Funciones de seguridad
+-- ============================================================
+-- pet_accessible/pet_editor son STABLE (no SECURITY DEFINER): corren con
+-- los privilegios del usuario que llama, así que dependen de que
+-- pet_access tenga su propia RLS correcta (ver "Users view own access"
+-- más abajo) — no hay bypass de por medio.
+--
+-- is_admin() SÍ es SECURITY DEFINER: es intencional y necesario, no un
+-- descuido. Las políticas "Admins view/update all profiles" la usan
+-- para decidir si un usuario puede leer profiles.is_admin de OTRA fila
+-- (la suya propia) — pero para leer esa columna primero necesitaría que
+-- la política ya lo dejara pasar, lo cual sería circular. SECURITY
+-- DEFINER rompe el ciclo: la función corre con los privilegios de quien
+-- la creó (bypasseando RLS de profiles solo dentro de la función), así
+-- que sí puede leer is_admin de forma segura. `SET search_path TO
+-- 'public'` fijo es la mitigación estándar para que un SECURITY DEFINER
+-- no sea secuestrable cambiando el search_path del caller.
+
+CREATE OR REPLACE FUNCTION public.is_admin()
+ RETURNS boolean
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT COALESCE((SELECT is_admin FROM public.profiles WHERE id = auth.uid()), false);
+$function$;
+
+CREATE OR REPLACE FUNCTION public.pet_accessible(p_pet_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+AS $function$
+  select exists (
+    select 1 from public.pet_access
+    where pet_id = p_pet_id and user_id = auth.uid()
+  );
+$function$;
+
+-- Igual que pet_accessible pero excluye role='viewer' — usada en todas
+-- las políticas "Pet editors manage X" (ALL) de abajo para que un tutor
+-- de solo lectura pueda ver los datos (vía pet_accessible, en la política
+-- SELECT separada) pero no modificarlos.
+CREATE OR REPLACE FUNCTION public.pet_editor(p_pet_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+AS $function$
+  select exists (
+    select 1 from public.pet_access
+    where pet_id = p_pet_id and user_id = auth.uid() and role <> 'viewer'
+  );
+$function$;
+
+-- ============================================================
+-- Tablas con RLS activo pero SIN ninguna política (fail-closed)
+-- ============================================================
+-- `select relname, relrowsecurity from pg_class ...` confirma que las 20
+-- tablas de public tienen RLS activo — ninguna quedó desprotegida. Dos de
+-- ellas (announcements, feature_flags) no aparecen en pg_policies: tienen
+-- RLS activo pero cero políticas, lo que en Postgres bloquea TODO acceso
+-- vía el rol anon/authenticated (nadie puede leer ni escribir, ni
+-- siquiera su propio dueño) — es el lado seguro por defecto, no una
+-- vulnerabilidad. No aparecen referenciadas en ningún archivo de js/, así
+-- que probablemente sean tablas creadas para una feature que nunca se
+-- conectó a la app; quedan documentadas acá por si alguien las retoma.
+
+-- ============================================================
+-- Políticas por tabla
+-- ============================================================
 
 -- ---------------------------------------------------------------
 -- activities
@@ -291,18 +361,10 @@ CREATE POLICY "Pet editors manage weight" ON public.weight_history
   WITH CHECK (pet_editor(pet_id));
 
 -- ============================================================
--- TODO: falta versionar en este mismo directorio
+-- Estado: completo (2026-09-08)
 -- ============================================================
--- 1. La definición de las 3 funciones usadas arriba:
---      pet_accessible(pet_id uuid), pet_editor(pet_id uuid), is_admin()
---    Query para traerlas (ver supabase/README.md):
---      select p.proname, pg_get_functiondef(p.oid)
---      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
---      where n.nspname = 'public'
---        and p.proname in ('pet_accessible','pet_editor','is_admin');
--- 2. Confirmar que TODAS las tablas de la app tienen RLS activo
---    (relrowsecurity = true) — no solo las que aparecen en pg_policies.
---    Una tabla sin ninguna policy y CON RLS activo bloquea todo el
---    acceso (fail-closed); sin RLS activo, queda abierta a cualquier
---    usuario autenticado según los grants por defecto (fail-open) —
---    hay que revisar esto tabla por tabla, pg_policies solo no alcanza.
+-- Las 3 funciones de seguridad y la confirmación de que las 20 tablas de
+-- public tienen RLS activo ya están arriba — no queda ningún TODO
+-- pendiente de esta foto. Si en el futuro se agrega una tabla o política
+-- nueva, correr de nuevo las 3 queries de supabase/README.md y actualizar
+-- este archivo (ver "Cómo mantenerlo al día" ahí).
