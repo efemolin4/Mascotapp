@@ -1029,7 +1029,33 @@ function viewDashboard() {
 }
 
 function eventIcon(t) {
-  return { Consulta:'hospital', Examen:'flask', Peluquería:'scissors', Hotel:'building', Vacuna:'flask', Otro:'pin' }[t] || 'pin';
+  return { Consulta:'hospital', Examen:'flask', Peluquería:'scissors', Hotel:'building', Vacuna:'flask',
+    Desparasitación:'bug', Tratamiento:'pill', Historial:'clipboard', Otro:'pin' }[t] || 'pin';
+}
+
+// Igual que getFinanceExpenses(): una vacuna aplicada, una desparasitación, el
+// inicio de un tratamiento o un evento del historial clínico ya ocurrieron,
+// pero vivían solo en sus propias tablas — la Agenda solo mostraba lo creado
+// a mano con "Crear evento". Esto los junta para que quede registro real de
+// lo que se hizo, no solo de lo agendado.
+function getAgendaEvents() {
+  const manual = (state.events || []).map(e => ({ ...e, source: 'manual' }));
+  const synth = [];
+  (state.pets || []).forEach(pet => {
+    (pet.vaccines || []).forEach(v => { if (v.date) synth.push({
+      id: 'vac-'+v.id, petId: pet.id, pet: pet.name, date: v.date, type: 'Vacuna',
+      title: `Vacuna: ${v.name}`, source: 'vaccine' }); });
+    (pet.deworming || []).forEach(d => { if (d.date) synth.push({
+      id: 'dew-'+d.id, petId: pet.id, pet: pet.name, date: d.date, type: 'Desparasitación',
+      title: `Desparasitación: ${d.product}`, source: 'deworming' }); });
+    (pet.medications || []).forEach(m => { if (m.startDate) synth.push({
+      id: 'med-'+m.id, petId: pet.id, pet: pet.name, date: m.startDate, type: 'Tratamiento',
+      title: `Tratamiento: ${m.name}`, source: 'medication' }); });
+    (pet.clinicalHistory || []).forEach(h => { if (h.date) synth.push({
+      id: 'his-'+h.id, petId: pet.id, pet: pet.name, date: h.date, type: 'Historial',
+      title: h.title, source: 'history' }); });
+  });
+  return [...manual, ...synth];
 }
 
 // ---- VISTA: MASCOTAS ----
@@ -1724,7 +1750,7 @@ function viewCalendar() {
   const lastDay = new Date(year, month + 1, 0);
   const startDow = firstDay.getDay();
   const today = todayStr();
-  const events = state.events || [];
+  const events = getAgendaEvents();
   const monthName = firstDay.toLocaleDateString('es-CL', { month:'long', year:'numeric' });
   const days = [];
   for (let i = 0; i < startDow; i++) days.push(null);
@@ -1751,12 +1777,13 @@ function viewCalendar() {
                  <div class="w-9 h-9 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600 flex-shrink-0">${icon(eventIcon(e.type),'w-4.5 h-4.5')}</div>
                  <div class="flex-1 min-w-0">
                    <div class="text-sm font-medium text-gray-900 truncate">${e.title}</div>
-                   <div class="text-xs text-gray-400">${formatDate(e.date)}${e.pet ? ` · ${e.pet}` : ''}</div>
+                   <div class="text-xs text-gray-400">${formatDate(e.date)}${e.pet ? ` · ${e.pet}` : ''}${e.source && e.source !== 'manual' ? ` · <span class="text-gray-300">automático</span>` : ''}</div>
                  </div>
+                 ${(!e.source || e.source === 'manual') ? `
                  <button onclick="deleteEvent('${e.id}')"
                    class="w-7 h-7 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors md:opacity-0 md:group-hover:opacity-100">
                    ${icon('trash','w-3.5 h-3.5')}
-                 </button>
+                 </button>` : ''}
                </div>`).join('')}
            </div>
            ${pagerHTML('events', pages, page)}`}
