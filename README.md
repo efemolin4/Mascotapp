@@ -105,8 +105,8 @@ Aplicación web progresiva (PWA) de página única para tutores de mascotas. Per
 | `weight_history` | Historial de peso |
 | `mood_log` | Registro de estado de ánimo |
 | `symptoms_log` | Log de síntomas |
-| `meals` | Registro de comidas |
-| `activities` | Actividad física |
+| `food_items` | Alimento de cada mascota (producto, tamaño de paquete, consumo diario) — estima cuándo se acaba, reemplaza el antiguo registro de comidas |
+| `activities` | Check-in diario de actividad (Poco/Normal/Mucho) |
 | `dose_log` | Log de dosis administradas |
 
 Todas las tablas tienen **Row Level Security (RLS)** activo — cada usuario solo ve sus propios datos.
@@ -300,6 +300,46 @@ CREATE POLICY "Owner can remove pet access" ON public.pet_access
   de tabla/columna incorrecto) — es decir, probablemente no haya datos
   reales que migrar, salvo lo que hayas cargado manualmente en el
   Table Editor.
+
+### Alimentación por stock en vez de registro diario (2026-09-07)
+
+El tab "Nutrición" dejó de pedir registrar cada comida y cada actividad
+física por separado — en su lugar:
+
+- **Alimentación**: se carga el producto que se compra (tamaño de paquete,
+  consumo diario, precio) y la app calcula sola cuándo se estima que se
+  acaba. Requiere una tabla nueva, `food_items`, que nunca existió:
+
+```sql
+create table public.food_items (
+  id uuid primary key default gen_random_uuid(),
+  pet_id uuid not null references public.pets(id) on delete cascade,
+  product text,
+  type text,
+  package_size numeric,
+  package_unit text,
+  daily_amount numeric,
+  price numeric,
+  purchase_date date,
+  notes text,
+  created_at timestamptz default now()
+);
+
+alter table public.food_items enable row level security;
+
+create policy "Users manage food_items of accessible pets" on public.food_items
+  for all using (
+    exists (select 1 from public.pet_access pa where pa.pet_id = food_items.pet_id and pa.user_id = auth.uid())
+  )
+  with check (
+    exists (select 1 from public.pet_access pa where pa.pet_id = food_items.pet_id and pa.user_id = auth.uid())
+  );
+```
+
+- **Actividad**: se reemplazó el formulario (tipo/duración/distancia) por
+  un check-in de un toque (Poco/Normal/Mucho), un registro por día. Sigue
+  usando la tabla `activities` ya existente — sin cambios de esquema.
+- La tabla `meals` queda sin uso (no se borra por si tenías datos ahí).
 
 ---
 

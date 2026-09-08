@@ -160,7 +160,7 @@ async function loadDataFromSupabase() {
 
     const petIds = accessRows.map(r => r.pet_id);
 
-    const [vaccRes, dewRes, medRes, histRes, wRes, moodRes, symRes, mealRes, actRes, doseRes, evRes, expRes, botRes, invRes] = await Promise.all([
+    const [vaccRes, dewRes, medRes, histRes, wRes, moodRes, symRes, foodRes, actRes, doseRes, evRes, expRes, botRes, invRes] = await Promise.all([
       sb.from('vaccines').select('*').in('pet_id', petIds),
       sb.from('dewormings').select('*').in('pet_id', petIds),
       sb.from('medications').select('*').in('pet_id', petIds),
@@ -168,7 +168,7 @@ async function loadDataFromSupabase() {
       sb.from('weight_history').select('*').in('pet_id', petIds),
       sb.from('mood_logs').select('*').in('pet_id', petIds),
       sb.from('symptoms_logs').select('*').in('pet_id', petIds),
-      sb.from('meals').select('*').in('pet_id', petIds),
+      sb.from('food_items').select('*').in('pet_id', petIds),
       sb.from('activities').select('*').in('pet_id', petIds),
       sb.from('dose_logs').select('*').in('pet_id', petIds),
       sb.from('events').select('*').eq('user_id', state.user.id),
@@ -179,7 +179,7 @@ async function loadDataFromSupabase() {
 
     const vacc = vaccRes.data || [], dew = dewRes.data || [], med = medRes.data || [];
     const hist = histRes.data || [], wh = wRes.data || [], mood = moodRes.data || [];
-    const sym = symRes.data || [], meal = mealRes.data || [], act = actRes.data || [];
+    const sym = symRes.data || [], food = foodRes.data || [], act = actRes.data || [];
     const dose = doseRes.data || [];
     const invites = invRes.data || [];
 
@@ -227,9 +227,10 @@ async function loadDataFromSupabase() {
           id: m.id, date: m.date, mood: m.mood, energy: m.energy, notes: m.notes })),
         symptomsLog: sym.filter(s => s.pet_id === pid).map(s => ({
           id: s.id, date: s.date, symptoms: s.symptoms, severity: s.severity, notes: s.notes })),
-        meals: meal.filter(m => m.pet_id === pid).map(m => ({
-          id: m.id, date: m.date, time: m.time_of_day, food: m.type,
-          portion: m.amount, portionUnit: m.unit, notes: m.notes })),
+        foodItems: food.filter(f => f.pet_id === pid).map(f => ({
+          id: f.id, product: f.product, type: f.type, packageSize: f.package_size,
+          packageUnit: f.package_unit, dailyAmount: f.daily_amount, price: f.price,
+          purchaseDate: f.purchase_date, notes: f.notes })),
         activities: act.filter(a => a.pet_id === pid).map(a => ({
           id: a.id, date: a.date, type: a.type, duration: a.duration, distance: a.distance, notes: a.notes })),
         doseLog: dose.filter(d => d.pet_id === pid).map(d => ({
@@ -306,6 +307,21 @@ function addMonths(dateStr, months) {
   d.setMonth(d.getMonth() + whole);
   if (frac) d.setDate(d.getDate() + Math.round(frac * 30));
   return d.toISOString().slice(0, 10);
+}
+
+// Fecha local, N días desde una fecha dada (mismo cuidado de horario local que
+// todayStr/daysFromNowStr — nunca .toISOString() acá).
+function addDays(dateStr, days) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + Math.round(days));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Días entre dos fechas locales YYYY-MM-DD (b - a).
+function daysBetween(dateA, dateB) {
+  const a = new Date(dateA + 'T12:00:00'), b = new Date(dateB + 'T12:00:00');
+  return Math.round((b - a) / 86400000);
 }
 
 function getAge(dob) {
@@ -2849,7 +2865,7 @@ async function savePet() {
     vaccines: [], deworming: [], medications: [], clinicalHistory: [],
     personalityTags: d.personalityTags || [], allergies: d.allergies || [],
     chronicConditions: d.chronicConditions || [], activityLevel: d.activityLevel || 2,
-    weightHistory: [], moodLog: [], symptomsLog: [], meals: [], activities: [], doseLog: [],
+    weightHistory: [], moodLog: [], symptomsLog: [], foodItems: [], activities: [], doseLog: [],
     tutor2: null,
   };
   state.pets.push(pet);
@@ -3595,6 +3611,33 @@ function medStockStatus(m) {
   return { level, label: `~${days} día${days !== 1 ? 's' : ''} de stock`, pct: Math.min(100, days / 30 * 100), days };
 }
 
+// Estimación de stock de alimento: a partir del tamaño del paquete y el
+// consumo diario, calcula cuánto dura y en qué fecha se estima que se acabe
+// (fecha de compra + días que dura), igual que el stock de medicamentos pero
+// anclado a una fecha de compra en vez de "lo que queda ahora mismo".
+function foodDaysTotal(f) {
+  const size = parseFloat(f.packageSize), daily = parseFloat(f.dailyAmount);
+  if (!size || !daily) return null;
+  return Math.floor(size / daily);
+}
+
+function foodRunOutDate(f) {
+  const days = foodDaysTotal(f);
+  if (days == null || !f.purchaseDate) return null;
+  return addDays(f.purchaseDate, days);
+}
+
+function foodStockStatus(f) {
+  const runOut = foodRunOutDate(f);
+  if (!runOut) return null;
+  const daysLeft = daysBetween(todayStr(), runOut);
+  const level = daysLeft <= 3 ? 'critico' : daysLeft <= 7 ? 'bajo' : 'ok';
+  return {
+    level, daysLeft, runOutDate: runOut,
+    label: daysLeft < 0 ? 'Se debería haber acabado' : daysLeft === 0 ? 'Se acaba hoy' : `~${daysLeft} día${daysLeft !== 1 ? 's' : ''} restantes`,
+  };
+}
+
 function viewBotiquin() {
   const pets = state.pets;
   const allMeds = pets.flatMap(p => (p.medications||[]).map(m => ({ ...m, petName: p.name, petId: p.id })));
@@ -3953,93 +3996,86 @@ function tabSeguimiento(pet) {
 
 // ---- TAB: NUTRICIÓN ----
 function tabNutricion(pet) {
-  const meals = pet.meals || [];
+  const foodItems = pet.foodItems || [];
   const activities = pet.activities || [];
   const today = todayStr();
+  const canEdit = canEditPet(pet);
 
-  // Last 7 days for meals
-  const last7MealDays = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i);
-    last7MealDays.push(d.toISOString().slice(0, 10));
-  }
-
-  // Agrupar comidas por fecha (últimos 7 días)
-  const mealsByDate = {};
-  meals.forEach(m => { if (!mealsByDate[m.date]) mealsByDate[m.date] = []; mealsByDate[m.date].push(m); });
-  const recentMealDates = last7MealDays.filter(d => mealsByDate[d]).reverse();
-
-  // Activity weekly summary
-  const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
-  const weekAgoStr = weekAgo.toISOString().slice(0, 10);
-  const recentActivities = activities.filter(a => a.date >= weekAgoStr).sort((a,b) => b.date>a.date?1:-1);
-  const totalMinutes = recentActivities.reduce((s, a) => s + (parseInt(a.duration)||0), 0);
-  const totalWalks = recentActivities.filter(a => a.type === 'Paseo').length;
-  const actTypeIcon = { Paseo:'activity', Juego:'activity', Ejercicio:'activity', Natación:'activity', Otro:'bolt' };
+  const last7Days = [];
+  for (let i = 6; i >= 0; i--) last7Days.push(addDays(today, -i));
+  const todayActivity = activities.find(a => a.date === today);
+  const streak = activityStreak(activities);
+  const activityColors = { Poco: 'bg-teal-200', Normal: 'bg-teal-400', Mucho: 'bg-teal-600' };
+  const activityHeights = { Poco: 12, Normal: 22, Mucho: 32 };
 
   return `
   <div class="space-y-4">
-    <!-- Alimentación -->
+    <!-- Alimentación: stock en vez de registro diario -->
     <div class="bg-white rounded-2xl shadow-sm p-4 md:p-5">
       <div class="flex items-center justify-between mb-3">
-        <h3 class="font-semibold text-gray-800 flex items-center gap-1.5">${icon('food','w-4 h-4')} Registro de alimentación</h3>
-        <button onclick="openMealModal('${pet.id}')" class="btn-primary text-sm">+ Registrar comida</button>
+        <h3 class="font-semibold text-gray-800 flex items-center gap-1.5">${icon('food','w-4 h-4')} Alimentación</h3>
+        ${canEdit ? `<button onclick="openFoodItemModal('${pet.id}')" class="btn-primary text-sm">+ Agregar alimento</button>` : ''}
       </div>
-      ${meals.length === 0
-        ? `<div class="text-center py-6"><div class="mb-2 flex justify-center text-gray-300">${icon('food','w-10 h-10')}</div><p class="text-sm text-gray-400">Sin registros de alimentación</p></div>`
-        : recentMealDates.length === 0
-          ? `<div class="text-center py-4"><p class="text-sm text-gray-400">Sin comidas registradas esta semana</p></div>`
-          : `<div class="space-y-3">
-               ${recentMealDates.map(date => `
-                 <div>
-                   <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">${formatDate(date)}</div>
-                   <div class="space-y-1.5">
-                     ${mealsByDate[date].map(m => `
-                       <div class="flex items-center gap-3 p-2.5 bg-gray-50 rounded-xl">
-                         <div class="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center text-orange-500">${icon('food','w-4 h-4')}</div>
-                         <div class="flex-1 min-w-0">
-                           <span class="text-sm font-medium text-gray-800">${m.time} · ${m.type}</span>
-                           <span class="text-xs text-gray-400 ml-2">${m.amount} ${m.unit}</span>
-                           ${m.notes ? `<div class="text-xs text-gray-500">${m.notes}</div>` : ''}
-                         </div>
-                       </div>`).join('')}
+      ${foodItems.length === 0
+        ? `<div class="text-center py-6"><div class="mb-2 flex justify-center text-gray-300">${icon('food','w-10 h-10')}</div><p class="text-sm text-gray-400">Sin alimentos registrados</p></div>`
+        : `<div class="space-y-3">
+             ${foodItems.map(f => {
+               const status = foodStockStatus(f);
+               const statusColor = { critico: 'text-red-600 bg-red-50', bajo: 'text-amber-600 bg-amber-50', ok: 'text-teal-600 bg-teal-50' };
+               return `
+               <div class="p-3 bg-gray-50 rounded-xl">
+                 <div class="flex items-start justify-between gap-3">
+                   <div class="min-w-0">
+                     <div class="text-sm font-semibold text-gray-800 truncate">${f.product}</div>
+                     <div class="text-xs text-gray-400">${f.type || ''} · ${f.packageSize||0} ${f.packageUnit||''} · ${f.dailyAmount||0} ${f.packageUnit||''}/día${f.price ? ` · ${fmtCLP(f.price)}` : ''}</div>
                    </div>
-                 </div>`).join('')}
-             </div>`}
+                   ${canEdit ? `<div class="flex items-center gap-1 flex-shrink-0">
+                     <button onclick="openFoodItemModal('${pet.id}','${f.id}')" class="w-7 h-7 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 flex items-center justify-center transition-colors">${icon('pencil','w-3.5 h-3.5')}</button>
+                     <button onclick="deleteFoodItem('${pet.id}','${f.id}')" class="w-7 h-7 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors">${icon('trash','w-3.5 h-3.5')}</button>
+                   </div>` : ''}
+                 </div>
+                 ${status ? `
+                   <div class="mt-2 flex items-center gap-2">
+                     <span class="badge text-xs ${statusColor[status.level]}">${status.label}</span>
+                     <span class="text-xs text-gray-400">Se estima que se acaba el ${formatDate(status.runOutDate)}</span>
+                   </div>
+                   <div class="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                     <div class="h-1.5 rounded-full ${status.level==='critico'?'bg-red-500':status.level==='bajo'?'bg-amber-500':'bg-teal-500'}" style="width:${Math.max(4,Math.min(100, status.daysLeft/30*100))}%"></div>
+                   </div>` : `<p class="text-xs text-gray-400 mt-2">Completa tamaño de paquete y consumo diario para estimar cuándo se acaba</p>`}
+               </div>`;
+             }).join('')}
+           </div>`}
     </div>
 
-    <!-- Actividad -->
+    <!-- Actividad: check-in diario en vez de registro detallado -->
     <div class="bg-white rounded-2xl shadow-sm p-4 md:p-5">
       <div class="flex items-center justify-between mb-3">
-        <h3 class="font-semibold text-gray-800 flex items-center gap-1.5">${icon('activity','w-4 h-4')} Registro de actividad</h3>
-        <button onclick="openActivityModal('${pet.id}')" class="btn-primary text-sm">+ Registrar actividad</button>
+        <h3 class="font-semibold text-gray-800 flex items-center gap-1.5">${icon('activity','w-4 h-4')} Actividad</h3>
+        ${streak > 0 ? `<span class="badge text-xs bg-teal-50 text-teal-600">🔥 ${streak} día${streak!==1?'s':''} seguidos</span>` : ''}
       </div>
-      ${recentActivities.length > 0 ? `
-        <div class="grid grid-cols-2 gap-3 mb-4">
-          <div class="bg-brand-50 rounded-xl p-3 text-center">
-            <div class="text-xl font-bold text-brand-700">${totalMinutes} min</div>
-            <div class="text-xs text-gray-500">Total esta semana</div>
-          </div>
-          <div class="bg-teal-50 rounded-xl p-3 text-center">
-            <div class="text-xl font-bold text-teal-700">${totalWalks}</div>
-            <div class="text-xs text-gray-500">Paseos esta semana</div>
-          </div>
-        </div>` : ''}
-      ${activities.length === 0
-        ? `<div class="text-center py-6"><div class="mb-2 flex justify-center text-gray-300">${icon('activity','w-10 h-10')}</div><p class="text-sm text-gray-400">Sin registros de actividad</p></div>`
-        : `<div class="space-y-2">
-             ${[...activities].sort((a,b)=>b.date>a.date?1:-1).slice(0,7).map(a => `
-               <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                 <div class="w-9 h-9 bg-teal-50 rounded-xl flex items-center justify-center text-teal-600">${icon(actTypeIcon[a.type]||'bolt','w-4.5 h-4.5')}</div>
-                 <div class="flex-1 min-w-0">
-                   <div class="flex items-center gap-2">
-                     <span class="text-sm font-medium text-gray-800">${a.type}</span>
-                     <span class="text-xs text-gray-400">${a.duration} min${a.distance ? ` · ${a.distance} km` : ''}</span>
-                   </div>
-                   <div class="text-xs text-gray-400">${formatDate(a.date)}${a.notes ? ` · ${a.notes}` : ''}</div>
-                 </div>
-               </div>`).join('')}
-           </div>`}
+      ${canEdit ? `
+      <div class="grid grid-cols-3 gap-2 mb-4">
+        ${ACTIVITY_LEVELS.map(l => `
+          <button type="button" onclick="logActivity('${pet.id}','${l}')"
+            class="py-2.5 rounded-xl border-2 text-sm font-medium transition-all
+            ${todayActivity?.type===l ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 text-gray-500 hover:border-teal-300'}">
+            ${l}
+          </button>`).join('')}
+      </div>
+      ${!todayActivity ? `<p class="text-xs text-gray-400 mb-3">¿Cuánto se movió hoy?</p>` : ''}` : ''}
+      <div class="flex gap-1.5 items-end">
+        ${last7Days.map(d => {
+          const entry = activities.find(a => a.date === d);
+          const isToday = d === today;
+          return `
+          <div class="flex flex-col items-center gap-1 flex-1">
+            <div title="${entry ? entry.type : 'Sin dato'}"
+              class="w-full rounded-xl ${entry ? activityColors[entry.type] : 'bg-gray-100'} transition-all"
+              style="height:${entry ? activityHeights[entry.type] : 10}px"></div>
+            <div class="text-[9px] text-gray-400">${isToday ? 'Hoy' : new Date(d+'T12:00:00').toLocaleDateString('es-CL',{weekday:'short'}).slice(0,3)}</div>
+          </div>`;
+        }).join('')}
+      </div>
     </div>
   </div>`;
 }
@@ -4268,47 +4304,41 @@ async function saveSymptoms(petId) {
   showToast('Síntomas registrados ✓', 'success');
 }
 
-// ---- MODAL: Comida ----
-function openMealModal(petId) {
-  const today = todayStr();
+// ---- ALIMENTO: stock en vez de registro diario ----
+// En vez de anotar cada comida (engorroso y poco práctico), se guarda el
+// producto que se compra y cuánto se le da por día — la app calcula sola
+// cuándo se estima que se acaba y avisa con anticipación (mismo enfoque que
+// el stock de medicamentos del Botiquín, ver foodStockStatus más arriba).
+function openFoodItemModal(petId, itemId) {
+  const pet = state.pets.find(p => p.id === petId);
+  const item = itemId ? pet?.foodItems?.find(f => f.id === itemId) : null;
   openModal(`
     <div class="modal-box p-4 sm:p-6">
-      <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">${icon('food','w-5 h-5')} Registrar comida</h3>
-      <form onsubmit="saveMeal(event,'${petId}')" class="space-y-3">
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="form-label">Fecha *</label>
-            <input id="ml-date" type="date" required value="${today}" class="input-field" />
-          </div>
-          <div>
-            <label class="form-label">Momento del día</label>
-            <select id="ml-time" class="input-field">
-              <option>Mañana</option><option>Mediodía</option><option>Tarde</option><option>Noche</option>
-            </select>
-          </div>
-        </div>
-        <div>
-          <label class="form-label">Tipo de alimento *</label>
-          <select id="ml-type" class="input-field">
-            <option>Seco</option><option>Húmedo</option><option>BARF</option><option>Casero</option><option>Snack</option>
+      <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">${icon('food','w-5 h-5')} ${item ? 'Editar alimento' : 'Agregar alimento'}</h3>
+      <form onsubmit="saveFoodItem(event,'${petId}'${itemId ? `,'${itemId}'` : ''})" class="space-y-3">
+        <div><label class="form-label">Producto *</label><input id="fi-product" required value="${item?.product||''}" placeholder="Ej: Royal Canin Adult" class="input-field" /></div>
+        <div><label class="form-label">Tipo</label>
+          <select id="fi-type" class="input-field">
+            ${['Seco','Húmedo','BARF','Casero','Snack'].map(t => `<option ${item?.type===t?'selected':''}>${t}</option>`).join('')}
           </select>
         </div>
         <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="form-label">Cantidad *</label>
-            <input id="ml-amount" type="number" required min="0" step="0.1" placeholder="Ej: 150" class="input-field" />
-          </div>
-          <div>
-            <label class="form-label">Unidad</label>
-            <select id="ml-unit" class="input-field">
-              <option value="g">g</option><option value="ml">ml</option><option value="porción">porción</option>
+          <div><label class="form-label">Tamaño del paquete *</label><input id="fi-size" type="number" required min="0" step="0.1" value="${item?.packageSize||''}" placeholder="Ej: 15" class="input-field" /></div>
+          <div><label class="form-label">Unidad</label>
+            <select id="fi-unit" class="input-field">
+              <option value="kg" ${item?.packageUnit==='kg'?'selected':''}>kg</option>
+              <option value="g" ${item?.packageUnit==='g'?'selected':''}>g</option>
+              <option value="unidades" ${item?.packageUnit==='unidades'?'selected':''}>unidades</option>
             </select>
           </div>
         </div>
-        <div>
-          <label class="form-label">Notas (opcional)</label>
-          <input id="ml-notes" placeholder="Ej: Royal Canin Adult" class="input-field" />
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="form-label">Consumo diario *</label><input id="fi-daily" type="number" required min="0" step="0.01" value="${item?.dailyAmount||''}" placeholder="Ej: 0.3" class="input-field" /></div>
+          <div><label class="form-label">Precio (CLP)</label><input id="fi-price" type="number" min="0" value="${item?.price||''}" placeholder="0" class="input-field" /></div>
         </div>
+        <p class="text-xs text-gray-400 -mt-1">Usa la misma unidad en tamaño y consumo diario (ej: paquete de 15 kg, 0.3 kg diarios).</p>
+        <div><label class="form-label">Fecha de compra</label><input id="fi-purchase" type="date" value="${item?.purchaseDate||todayStr()}" class="input-field" /></div>
+        <div><label class="form-label">Notas (opcional)</label><input id="fi-notes" value="${item?.notes||''}" class="input-field" /></div>
         <div class="flex gap-3 pt-2">
           <button type="button" onclick="closeModal()" class="btn-secondary flex-1">Cancelar</button>
           <button type="submit" class="btn-primary flex-1">Guardar</button>
@@ -4317,90 +4347,84 @@ function openMealModal(petId) {
     </div>`);
 }
 
-async function saveMeal(e, petId) {
+async function saveFoodItem(e, petId, itemId) {
   e.preventDefault();
   const pet = state.pets.find(p => p.id === petId);
   if (!pet) return;
+  if (blockIfReadOnly(pet)) return;
   const g = id => document.getElementById(id)?.value;
-  const date = g('ml-date'), time = g('ml-time'), food = g('ml-type');
-  const portion = parseFloat(g('ml-amount') || 0), portionUnit = g('ml-unit'), notes = g('ml-notes');
-  pet.meals = pet.meals || [];
+  const product = g('fi-product'), type = g('fi-type');
+  const packageSize = parseFloat(g('fi-size') || 0), packageUnit = g('fi-unit');
+  const dailyAmount = parseFloat(g('fi-daily') || 0), price = g('fi-price') || null;
+  const purchaseDate = g('fi-purchase') || todayStr(), notes = g('fi-notes');
+  pet.foodItems = pet.foodItems || [];
   if (isDemoUser()) {
-    pet.meals.push({ id: genId(), date, time, food, portion, portionUnit, notes });
+    if (itemId) {
+      const item = pet.foodItems.find(f => f.id === itemId);
+      if (item) Object.assign(item, { product, type, packageSize, packageUnit, dailyAmount, price, purchaseDate, notes });
+    } else {
+      pet.foodItems.push({ id: genId(), product, type, packageSize, packageUnit, dailyAmount, price, purchaseDate, notes });
+    }
+  } else if (itemId) {
+    const { error } = await sb.from('food_items').update({
+      product, type, package_size: packageSize, package_unit: packageUnit,
+      daily_amount: dailyAmount, price, purchase_date: purchaseDate, notes
+    }).eq('id', itemId);
+    if (error) { showToast('Error al guardar', 'error'); console.error(error); return; }
+    const item = pet.foodItems.find(f => f.id === itemId);
+    if (item) Object.assign(item, { product, type, packageSize, packageUnit, dailyAmount, price, purchaseDate, notes });
   } else {
-    const { data, error } = await sb.from('meals').insert({
-      pet_id: petId, date, time_of_day: time, type: food, amount: portion, unit: portionUnit, notes
+    const { data, error } = await sb.from('food_items').insert({
+      pet_id: petId, product, type, package_size: packageSize, package_unit: packageUnit,
+      daily_amount: dailyAmount, price, purchase_date: purchaseDate, notes
     }).select().single();
-    if (error) { showToast('Error al guardar comida', 'error'); console.error(error); return; }
-    pet.meals.push({ id: data.id, date: data.date, time: data.time_of_day, food: data.type,
-      portion: data.amount, portionUnit: data.unit, notes: data.notes });
+    if (error) { showToast('Error al guardar', 'error'); console.error(error); return; }
+    pet.foodItems.push({ id: data.id, product: data.product, type: data.type, packageSize: data.package_size,
+      packageUnit: data.package_unit, dailyAmount: data.daily_amount, price: data.price,
+      purchaseDate: data.purchase_date, notes: data.notes });
   }
   closeModal(); render();
-  showToast('Comida registrada ✓', 'success');
+  showToast('Alimento guardado', 'success');
 }
 
-// ---- MODAL: Actividad ----
-function openActivityModal(petId) {
+async function deleteFoodItem(petId, itemId) {
+  const pet = state.pets.find(p => p.id === petId);
+  if (blockIfReadOnly(pet)) return;
+  if (!isDemoUser()) await sb.from('food_items').delete().eq('id', itemId);
+  if (pet) { pet.foodItems = (pet.foodItems||[]).filter(f => f.id !== itemId); render(); }
+}
+
+// ---- ACTIVIDAD: check-in diario en vez de registro detallado ----
+// Un toque ("Poco"/"Normal"/"Mucho") en vez de un formulario con tipo,
+// duración y distancia — reutiliza la tabla `activities` (type guarda el
+// nivel elegido), un registro por día.
+const ACTIVITY_LEVELS = ['Poco', 'Normal', 'Mucho'];
+
+async function logActivity(petId, level) {
+  const pet = state.pets.find(p => p.id === petId);
+  if (!pet) return;
+  if (blockIfReadOnly(pet)) return;
   const today = todayStr();
-  openModal(`
-    <div class="modal-box p-4 sm:p-6">
-      <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">${icon('activity','w-5 h-5')} Registrar actividad</h3>
-      <form onsubmit="saveActivity(event,'${petId}')" class="space-y-3">
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="form-label">Fecha *</label>
-            <input id="ac-date" type="date" required value="${today}" class="input-field" />
-          </div>
-          <div>
-            <label class="form-label">Tipo *</label>
-            <select id="ac-type" class="input-field">
-              <option>Paseo</option><option>Juego</option><option>Ejercicio</option><option>Natación</option><option>Otro</option>
-            </select>
-          </div>
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="form-label">Duración (min) *</label>
-            <input id="ac-duration" type="number" required min="1" placeholder="Ej: 30" class="input-field" />
-          </div>
-          <div>
-            <label class="form-label">Distancia (km, opcional)</label>
-            <input id="ac-distance" type="number" min="0" step="0.1" placeholder="Ej: 2.5" class="input-field" />
-          </div>
-        </div>
-        <div>
-          <label class="form-label">Notas (opcional)</label>
-          <input id="ac-notes" placeholder="Ej: Parque Las Lilas" class="input-field" />
-        </div>
-        <div class="flex gap-3 pt-2">
-          <button type="button" onclick="closeModal()" class="btn-secondary flex-1">Cancelar</button>
-          <button type="submit" class="btn-primary flex-1">Guardar</button>
-        </div>
-      </form>
-    </div>`);
+  const existing = (pet.activities || []).find(a => a.date === today);
+  pet.activities = (pet.activities || []).filter(a => a.date !== today);
+  if (isDemoUser()) {
+    pet.activities.push({ id: genId(), date: today, type: level });
+  } else {
+    if (existing?.id) await sb.from('activities').delete().eq('id', existing.id);
+    const { data, error } = await sb.from('activities').insert({ pet_id: petId, date: today, type: level }).select().single();
+    if (error) { showToast('Error al registrar actividad', 'error'); console.error(error); return; }
+    pet.activities.push({ id: data.id, date: data.date, type: data.type });
+  }
+  render();
+  showToast('Actividad de hoy registrada ✓', 'success');
 }
 
-async function saveActivity(e, petId) {
-  e.preventDefault();
-  const pet = state.pets.find(p => p.id === petId);
-  if (!pet) return;
-  const g = id => document.getElementById(id)?.value;
-  const date = g('ac-date'), type = g('ac-type');
-  const duration = parseInt(g('ac-duration') || 0);
-  const distance = g('ac-distance') ? parseFloat(g('ac-distance')) : null;
-  const notes = g('ac-notes');
-  pet.activities = pet.activities || [];
-  if (isDemoUser()) {
-    pet.activities.push({ id: genId(), date, type, duration, distance, notes });
-  } else {
-    const { data, error } = await sb.from('activities').insert({
-      pet_id: petId, date, type, duration, distance, notes
-    }).select().single();
-    if (error) { showToast('Error al guardar actividad', 'error'); return; }
-    pet.activities.push({ id: data.id, date: data.date, type: data.type, duration: data.duration, distance: data.distance, notes: data.notes });
-  }
-  closeModal(); render();
-  showToast('Actividad registrada ✓', 'success');
+// Racha de días consecutivos (incluyendo hoy) con actividad registrada.
+function activityStreak(activities) {
+  const dates = new Set((activities||[]).map(a => a.date));
+  let streak = 0, d = todayStr();
+  while (dates.has(d)) { streak++; d = addDays(d, -1); }
+  return streak;
 }
 
 // ---- EXPORT PET RECORD ----
@@ -4567,18 +4591,15 @@ function loadDemoAndLogin() {
       { date: dt(2026,5,11), symptoms: ['Sin apetito','Letargo'], notes: 'Posiblemente por el antibiótico' },
       { date: dt(2026,5,9), symptoms: ['Rascado'], notes: 'Se rasca la pata derecha' },
     ],
-    meals: [
-      { date: dt(2026,5,14), time: 'Mañana', type: 'Seco', amount: 120, unit: 'g', notes: 'Royal Canin Adult' },
-      { date: dt(2026,5,14), time: 'Noche', type: 'Seco', amount: 120, unit: 'g', notes: '' },
-      { date: dt(2026,5,13), time: 'Mañana', type: 'Seco', amount: 120, unit: 'g', notes: '' },
-      { date: dt(2026,5,13), time: 'Noche', type: 'Húmedo', amount: 100, unit: 'g', notes: 'Lata prémium' },
+    foodItems: [
+      { id: 'food-greta-1', product: 'Royal Canin Adult', type: 'Seco', packageSize: 15, packageUnit: 'kg', dailyAmount: 0.24, price: 62000, purchaseDate: daysFromNowStr(-45), notes: '' },
     ],
     activities: [
-      { date: dt(2026,5,14), type: 'Paseo', duration: 45, distance: 3.2, notes: 'Parque Las Lilas' },
-      { date: dt(2026,5,13), type: 'Juego', duration: 20, distance: null, notes: 'Pelota en el jardín' },
-      { date: dt(2026,5,12), type: 'Paseo', duration: 30, distance: 2.1, notes: '' },
-      { date: dt(2026,5,11), type: 'Paseo', duration: 25, distance: 1.8, notes: 'Día corto por lluvia' },
-      { date: dt(2026,5,10), type: 'Paseo', duration: 50, distance: 3.8, notes: '' },
+      { date: todayStr(), type: 'Normal' },
+      { date: daysFromNowStr(-1), type: 'Mucho' },
+      { date: daysFromNowStr(-2), type: 'Normal' },
+      { date: daysFromNowStr(-3), type: 'Poco' },
+      { date: daysFromNowStr(-4), type: 'Normal' },
     ],
     doseLog: [
       { date: dt(2026,5,8), given: true }, { date: dt(2026,5,9), given: true },
@@ -4644,18 +4665,13 @@ function loadDemoAndLogin() {
     symptomsLog: [
       { date: dt(2026,5,10), symptoms: ['Estornudos'], notes: 'Algunos estornudos por la mañana' },
     ],
-    meals: [
-      { date: dt(2026,5,14), time: 'Mañana', type: 'Seco', amount: 40, unit: 'g', notes: 'Royal Canin Siamese' },
-      { date: dt(2026,5,14), time: 'Noche', type: 'Húmedo', amount: 85, unit: 'g', notes: 'Lata sabor salmón' },
-      { date: dt(2026,5,13), time: 'Mañana', type: 'Seco', amount: 40, unit: 'g', notes: '' },
-      { date: dt(2026,5,13), time: 'Noche', type: 'Húmedo', amount: 85, unit: 'g', notes: '' },
+    foodItems: [
+      { id: 'food-luna-1', product: 'Royal Canin Siamese', type: 'Seco', packageSize: 4, packageUnit: 'kg', dailyAmount: 0.08, price: 28000, purchaseDate: daysFromNowStr(-46), notes: '' },
     ],
     activities: [
-      { date: dt(2026,5,14), type: 'Juego', duration: 15, distance: null, notes: 'Ratón de peluche' },
-      { date: dt(2026,5,13), type: 'Juego', duration: 20, distance: null, notes: 'Pluma interactiva' },
-      { date: dt(2026,5,12), type: 'Juego', duration: 10, distance: null, notes: '' },
-      { date: dt(2026,5,11), type: 'Ejercicio', duration: 25, distance: null, notes: 'Persiguió el laser' },
-      { date: dt(2026,5,10), type: 'Juego', duration: 15, distance: null, notes: '' },
+      { date: todayStr(), type: 'Poco' },
+      { date: daysFromNowStr(-1), type: 'Normal' },
+      { date: daysFromNowStr(-3), type: 'Poco' },
     ],
     doseLog: [
       { date: dt(2026,5,10), given: true }, { date: dt(2026,5,11), given: true },
@@ -4706,15 +4722,13 @@ function loadDemoAndLogin() {
       { date: dt(2026,5,14), mood: 'great', notes: 'Comió bien todos sus pellets' },
     ],
     symptomsLog: [],
-    meals: [
-      { date: dt(2026,5,14), time: 'Mañana', type: 'Seco', amount: 30, unit: 'g', notes: 'Pellets + heno Timothy' },
-      { date: dt(2026,5,14), time: 'Noche', type: 'Casero', amount: 1, unit: 'porción', notes: 'Zanahoria y perejil' },
-      { date: dt(2026,5,13), time: 'Mañana', type: 'Seco', amount: 30, unit: 'g', notes: '' },
+    foodItems: [
+      { id: 'food-coco-1', product: 'Pellets + heno Timothy', type: 'Seco', packageSize: 2, packageUnit: 'kg', dailyAmount: 0.03, price: 9000, purchaseDate: daysFromNowStr(-2), notes: '' },
     ],
     activities: [
-      { date: dt(2026,5,14), type: 'Juego', duration: 30, distance: null, notes: 'Hora libre en la sala' },
-      { date: dt(2026,5,13), type: 'Juego', duration: 20, distance: null, notes: 'Exploró la terraza' },
-      { date: dt(2026,5,12), type: 'Juego', duration: 25, distance: null, notes: 'Corrió y saltó mucho' },
+      { date: todayStr(), type: 'Mucho' },
+      { date: daysFromNowStr(-1), type: 'Mucho' },
+      { date: daysFromNowStr(-2), type: 'Normal' },
     ],
     doseLog: [],
     bcs: 5,
