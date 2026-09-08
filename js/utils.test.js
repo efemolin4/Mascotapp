@@ -1,0 +1,169 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import {
+  todayStr, daysFromNowStr, addDays, daysBetween, addMonths, getAge,
+  careAlertStatus, medStockStatus, foodStockStatus, esc,
+} from './utils.js';
+
+// Fija "hoy" a una fecha conocida para que las pruebas de fecha sean
+// deterministas. Se usa una hora local nocturna (23:00) a propósito: es
+// justo la ventana horaria en la que el bug de zona horaria original
+// (calcular "hoy" con .toISOString(), que usa UTC) hacía que Chile ya
+// pareciera estar un día adelantado.
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 5, 15, 23, 0, 0)); // 15 de junio 2026, 23:00 hora local
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe('todayStr', () => {
+  it('devuelve la fecha LOCAL de hoy, no la fecha UTC', () => {
+    // A las 23:00 hora local, .toISOString() (UTC) ya reportaría el día
+    // siguiente en cualquier huso horario con offset negativo (como Chile,
+    // UTC-3/-4) — esta prueba falla si todayStr() vuelve a usar UTC.
+    expect(todayStr()).toBe('2026-06-15');
+  });
+});
+
+describe('daysFromNowStr / addDays / daysBetween', () => {
+  it('daysFromNowStr sigue en fecha local, no salta de día por UTC', () => {
+    expect(daysFromNowStr(0)).toBe('2026-06-15');
+    expect(daysFromNowStr(10)).toBe('2026-06-25');
+    expect(daysFromNowStr(-5)).toBe('2026-06-10');
+  });
+
+  it('addDays suma/resta días respetando cambios de mes', () => {
+    expect(addDays('2026-06-28', 5)).toBe('2026-07-03');
+    expect(addDays('2026-06-05', -10)).toBe('2026-05-26');
+  });
+
+  it('daysBetween calcula la diferencia en días entre dos fechas', () => {
+    expect(daysBetween('2026-06-01', '2026-06-15')).toBe(14);
+    expect(daysBetween('2026-06-15', '2026-06-01')).toBe(-14);
+    expect(daysBetween('2026-06-15', '2026-06-15')).toBe(0);
+  });
+});
+
+describe('addMonths', () => {
+  it('suma meses completos', () => {
+    expect(addMonths('2026-01-10', 1)).toBe('2026-02-10');
+    expect(addMonths('2026-01-10', 12)).toBe('2027-01-10');
+  });
+
+  it('"1 mes y medio" (1.5) da 1 mes + 15 días, no exactamente 45 días — comportamiento documentado, no un bug', () => {
+    expect(addMonths('2026-01-01', 1.5)).toBe('2026-02-16');
+  });
+
+  it('sin fecha o sin meses devuelve string vacío', () => {
+    expect(addMonths('', 1)).toBe('');
+    expect(addMonths('2026-01-01', 0)).toBe('');
+  });
+});
+
+describe('getAge', () => {
+  it('cumpleaños ya ocurrido este año calendario', () => {
+    // Hoy es 2026-06-15; nació el 2020-01-01 → el cumpleaños de este año (ene) ya pasó
+    expect(getAge('2020-01-01')).toBe('6 años');
+  });
+
+  it('cumpleaños que todavía NO ha ocurrido este año calendario', () => {
+    // Nació el 2020-12-25 → el cumpleaños de este año todavía no llega, cuenta 5 no 6
+    expect(getAge('2020-12-25')).toBe('5 años');
+  });
+
+  it('menor a un año se expresa en meses', () => {
+    expect(getAge('2026-04-15')).toBe('2 meses');
+  });
+
+  it('sin fecha de nacimiento devuelve vacío', () => {
+    expect(getAge('')).toBe('');
+    expect(getAge(null)).toBe('');
+  });
+});
+
+describe('careAlertStatus', () => {
+  it('sin next_date: estado sin_fecha', () => {
+    expect(careAlertStatus(null, 'same', null).status).toBe('sin_fecha');
+  });
+
+  it('fecha ya pasada: vencido, sin importar el tipo de alerta', () => {
+    expect(careAlertStatus('2026-06-01', 'same', null).status).toBe('vencido');
+  });
+
+  it('ventana "same": solo el mismo día cuenta como próximo', () => {
+    expect(careAlertStatus('2026-06-15', 'same', null).status).toBe('proximo');
+    expect(careAlertStatus('2026-06-16', 'same', null).status).toBe('al_dia');
+  });
+
+  it('ventana "week": 7 días antes cuenta como próximo', () => {
+    expect(careAlertStatus('2026-06-22', 'week', null).status).toBe('proximo');
+    expect(careAlertStatus('2026-06-23', 'week', null).status).toBe('al_dia');
+  });
+
+  it('ventana "custom": respeta los días configurados por el usuario', () => {
+    expect(careAlertStatus('2026-06-30', 'custom', 15).status).toBe('proximo');
+    expect(careAlertStatus('2026-07-01', 'custom', 15).status).toBe('al_dia');
+  });
+});
+
+describe('medStockStatus', () => {
+  it('sin stock cargado: null', () => {
+    expect(medStockStatus({ stockTotal: null })).toBeNull();
+  });
+
+  it('sin datos de frecuencia/dosis: cae al umbral fijo por unidades', () => {
+    expect(medStockStatus({ stockTotal: 3 }).level).toBe('critico');
+    expect(medStockStatus({ stockTotal: 10 }).level).toBe('bajo');
+    expect(medStockStatus({ stockTotal: 20 }).level).toBe('ok');
+  });
+
+  it('con frecuencia y dosis en la misma unidad: calcula días de stock reales', () => {
+    // 1 comprimido cada 24h = 1/día; 3 comprimidos de stock → 3 días → crítico
+    const m = { stockTotal: 3, freqN: 24, freqUnit: 'horas', doseVal: 1, doseUnit: 'Comprimido(s)', stockUnit: 'Comprimidos' };
+    expect(medStockStatus(m).level).toBe('critico');
+    expect(medStockStatus(m).days).toBe(3);
+  });
+});
+
+describe('foodStockStatus', () => {
+  it('sin tamaño de paquete o consumo diario: null', () => {
+    expect(foodStockStatus({ packageSize: null, dailyAmount: 0.3, purchaseDate: '2026-06-01' })).toBeNull();
+  });
+
+  it('calcula la fecha estimada de agotamiento a partir de la fecha de compra', () => {
+    // Paquete de 15kg, 0.3kg/día = 50 días de duración, comprado el 2026-05-01
+    const f = { packageSize: 15, dailyAmount: 0.3, purchaseDate: '2026-05-01' };
+    expect(foodStockStatus(f).runOutDate).toBe(addDays('2026-05-01', 50));
+  });
+
+  it('clasifica el nivel según los días restantes hasta esa fecha', () => {
+    // Comprado hace 47 de 50 días de duración → quedan 3 días → crítico
+    const critico = { packageSize: 15, dailyAmount: 0.3, purchaseDate: addDays(todayStr(), -47) };
+    expect(foodStockStatus(critico).level).toBe('critico');
+    // Comprado hoy, dura 50 días → ok
+    const ok = { packageSize: 15, dailyAmount: 0.3, purchaseDate: todayStr() };
+    expect(foodStockStatus(ok).level).toBe('ok');
+  });
+});
+
+describe('esc', () => {
+  it('escapa los 5 caracteres especiales de HTML', () => {
+    expect(esc(`<script>alert('hi') & "quotes"</script>`))
+      .toBe('&lt;script&gt;alert(&#39;hi&#39;) &amp; &quot;quotes&quot;&lt;/script&gt;');
+  });
+
+  it('un texto sin caracteres especiales vuelve idéntico', () => {
+    expect(esc('Greta, 5 años')).toBe('Greta, 5 años');
+  });
+
+  it('null/undefined se convierten en string vacío, no en el literal "null"', () => {
+    expect(esc(null)).toBe('');
+    expect(esc(undefined)).toBe('');
+  });
+
+  it('convierte valores no-string (números) a texto', () => {
+    expect(esc(42)).toBe('42');
+  });
+});

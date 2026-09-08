@@ -117,12 +117,42 @@ Todas las tablas tienen **Row Level Security (RLS)** activo — cada usuario sol
 
 ```
 MyPets-3.0/
-├── index.html        # Punto de entrada + CDN scripts
+├── index.html          # Punto de entrada + CDN scripts
+├── vercel.json         # Reescribe cualquier ruta a index.html (rutas reales en prod)
+├── package.json        # Solo para tests (Vitest) — la app en sí no tiene build step
 ├── css/
-│   └── style.css     # Estilos personalizados y animaciones
+│   └── style.css       # Estilos personalizados y animaciones
+├── scripts/
+│   └── spa-server.py   # Servidor local con el mismo fallback de vercel.json
 └── js/
-    └── app.js        # Aplicación completa (~4500 líneas)
+    ├── utils.js         # Utilidades puras: fechas, formato, cálculo de estado (~200 líneas)
+    ├── utils.test.js    # Tests de Vitest para js/utils.js
+    └── app.js           # Resto de la aplicación (~5400 líneas)
 ```
+
+**Sin build step para la app.** Los archivos se sirven tal cual — ver
+[Deploy](#deploy). `js/utils.js` se carga como módulo ES nativo
+(`<script type="module">`) antes de `js/app.js`, que sigue siendo un
+script clásico sin cambios; sus funciones quedan expuestas en `window`
+para que `app.js` las siga llamando exactamente igual que antes. Es el
+primer módulo extraído del archivo único original — partir el resto
+(vistas, modales, llamadas a Supabase) en módulos por feature queda
+pendiente como una fase separada, más grande y de mayor riesgo porque
+toca las 127 funciones que el HTML generado invoca vía `onclick="..."`.
+
+### Tests
+
+```bash
+npm install
+npm test        # corre una vez
+npm run test:watch   # modo watch
+```
+
+Cubre las funciones de `js/utils.js`: aritmética de fechas en zona local
+(el bug de UTC que se corrigió esta sesión), los 3 niveles de alerta de
+`careAlertStatus()`, los umbrales de `medStockStatus()`/`foodStockStatus()`,
+y el escape de HTML de `esc()`. El resto de la app (vistas, Supabase) no
+tiene tests todavía — depende de verificación manual en el navegador.
 
 ---
 
