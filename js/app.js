@@ -19,6 +19,12 @@ const VACCINES_BY_SPECIES = {
   Otro:    ['Consultar con veterinario'],
 };
 
+// ---- PLANES ----
+// Límite de mascotas por plan, anunciado en el panel admin pero nunca aplicado
+// al crear una mascota hasta ahora.
+const PLAN_PET_LIMITS = { free: 1, basic: 3, pro: Infinity, clinic: Infinity };
+const PLAN_LABELS = { free: 'Free', basic: 'Basic', pro: 'Pro', clinic: 'Clínica' };
+
 // ---- PERIODICIDADES ----
 const PERIODICITY_OPTIONS = [
   { label: 'Sin periodicidad',          months: 0,   days: 0    },
@@ -2112,8 +2118,7 @@ function viewFinance() {
 
     ${(() => {
       // Predicción de gastos próximo mes
-      const now = new Date();
-      const last90Days = new Date(now.getTime() - 90 * 86400000).toISOString().slice(0,10);
+      const last90Days = daysFromNowStr(-90);
       const last90Expenses = allExpenses.filter(e => e.date >= last90Days);
       const last90Amounts = last90Expenses.map(e => Number(e.amount || 0)).filter(a => a > 0);
       if (!last90Amounts.length) return '';
@@ -2864,6 +2869,13 @@ function collectStepData() {
 async function savePet() {
   const d = state.newPetData;
   if (!d.name) { showToast('El nombre es requerido', 'error'); state.addPetStep = 1; render(); return; }
+  if (!isDemoUser()) {
+    const limit = PLAN_PET_LIMITS[state.user.plan] ?? PLAN_PET_LIMITS.free;
+    if (state.pets.length >= limit) {
+      showToast(`Tu plan ${PLAN_LABELS[state.user.plan] || 'Free'} permite hasta ${limit} mascota${limit!==1?'s':''}. Mejora tu plan para agregar más.`, 'error');
+      return;
+    }
+  }
   showToast('Guardando...', '');
   const petData = {
     owner_id: state.user.id,
@@ -3096,7 +3108,8 @@ async function saveVaccine(e, petId) {
 async function deleteVaccine(petId, vId) {
   const pet = state.pets.find(p => p.id === petId);
   if (blockIfReadOnly(pet)) return;
-  await sb.from('vaccines').delete().eq('id', vId);
+  const { error } = await sb.from('vaccines').delete().eq('id', vId);
+  if (error) { showToast('Error al eliminar', 'error'); console.error(error); return; }
   if (pet) { pet.vaccines = pet.vaccines.filter(v => v.id !== vId); render(); }
 }
 
@@ -3135,7 +3148,8 @@ async function saveDeworming(e, petId) {
 async function deleteDeworming(petId, dId) {
   const pet = state.pets.find(p => p.id === petId);
   if (blockIfReadOnly(pet)) return;
-  await sb.from('dewormings').delete().eq('id', dId);
+  const { error } = await sb.from('dewormings').delete().eq('id', dId);
+  if (error) { showToast('Error al eliminar', 'error'); console.error(error); return; }
   if (pet) { pet.deworming = pet.deworming.filter(d => d.id !== dId); render(); }
 }
 
@@ -3183,7 +3197,10 @@ async function saveMedication(e, petId) {
 async function deleteMedication(petId, mId) {
   const pet = state.pets.find(p => p.id === petId);
   if (blockIfReadOnly(pet)) return;
-  if (!isDemoUser()) await sb.from('medications').delete().eq('id', mId);
+  if (!isDemoUser()) {
+    const { error } = await sb.from('medications').delete().eq('id', mId);
+    if (error) { showToast('Error al eliminar', 'error'); console.error(error); return; }
+  }
   if (pet) { pet.medications = pet.medications.filter(m => m.id !== mId); render(); }
 }
 
@@ -3260,7 +3277,10 @@ async function saveHistory(e, petId) {
 async function deleteHistory(petId, hId) {
   const pet = state.pets.find(p => p.id === petId);
   if (blockIfReadOnly(pet)) return;
-  if (!isDemoUser()) await sb.from('history_records').delete().eq('id', hId);
+  if (!isDemoUser()) {
+    const { error } = await sb.from('history_records').delete().eq('id', hId);
+    if (error) { showToast('Error al eliminar', 'error'); console.error(error); return; }
+  }
   if (pet) { pet.clinicalHistory = pet.clinicalHistory.filter(h => h.id !== hId); render(); }
 }
 
@@ -3281,7 +3301,8 @@ async function saveEvent(e) {
 }
 
 async function deleteEvent(id) {
-  await sb.from('events').delete().eq('id', id);
+  const { error } = await sb.from('events').delete().eq('id', id);
+  if (error) { showToast('Error al eliminar', 'error'); console.error(error); return; }
   state.events = state.events.filter(e => e.id !== id); render();
 }
 
@@ -3302,7 +3323,8 @@ async function saveExpense(e) {
 }
 
 async function deleteExpense(id) {
-  await sb.from('expenses').delete().eq('id', id);
+  const { error } = await sb.from('expenses').delete().eq('id', id);
+  if (error) { showToast('Error al eliminar', 'error'); console.error(error); return; }
   state.expenses = state.expenses.filter(e => e.id !== id); render();
 }
 
@@ -3892,7 +3914,10 @@ async function saveBotiquinItem(e, itemId) {
 }
 
 async function deleteBotiquinItem(itemId) {
-  if (!isDemoUser()) await sb.from('botiquin_items').delete().eq('id', itemId);
+  if (!isDemoUser()) {
+    const { error } = await sb.from('botiquin_items').delete().eq('id', itemId);
+    if (error) { showToast('Error al eliminar', 'error'); console.error(error); return; }
+  }
   state.botiquin = (state.botiquin||[]).filter(i => i.id !== itemId);
   render();
 }
@@ -3906,10 +3931,7 @@ function tabSeguimiento(pet) {
 
   // Mood for last 7 days
   const last7Days = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i);
-    last7Days.push(d.toISOString().slice(0, 10));
-  }
+  for (let i = 6; i >= 0; i--) last7Days.push(addDays(today, -i));
   const moodColors = { great: 'bg-green-400', ok: 'bg-amber-400', low: 'bg-red-400' };
   const moodEmojis = { great: '😄', ok: '😐', low: '😟' };
   const moodLabels = { great: 'Excelente', ok: 'Normal', low: 'Bajo' };
@@ -4430,7 +4452,10 @@ async function saveFoodItem(e, petId, itemId) {
 async function deleteFoodItem(petId, itemId) {
   const pet = state.pets.find(p => p.id === petId);
   if (blockIfReadOnly(pet)) return;
-  if (!isDemoUser()) await sb.from('food_items').delete().eq('id', itemId);
+  if (!isDemoUser()) {
+    const { error } = await sb.from('food_items').delete().eq('id', itemId);
+    if (error) { showToast('Error al eliminar', 'error'); console.error(error); return; }
+  }
   if (pet) { pet.foodItems = (pet.foodItems||[]).filter(f => f.id !== itemId); render(); }
 }
 
