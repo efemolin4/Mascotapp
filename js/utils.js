@@ -101,7 +101,7 @@ export function fmtCLP(n) {
 // interpolación de strings + innerHTML sin sanitizar, así que un tutor
 // compartido podría meter HTML/JS en un campo de texto y afectar la sesión
 // del otro tutor cuando abre esa ficha. NUNCA usar dentro de un atributo
-// onclick="fn('${...}')" — ahí el valor es un literal de JS, no HTML, y
+// onclick que llama una función pasándole el valor como argumento — ahí es un literal de JS, no HTML, y
 // escaparlo rompería la llamada; eso solo aplica a ids internos (uuid/genId)
 // que la propia app genera, nunca a texto libre del usuario.
 export function esc(str) {

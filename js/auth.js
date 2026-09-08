@@ -1,0 +1,573 @@
+/* ============================================================
+   MYPETS 3.0 — Autenticación y datos de demo
+   ============================================================
+   Fase 2 de la modularización (ver js/utils.js para el porqué de la
+   convención export + window.assign). Vistas de login/registro/recuperar
+   contraseña, sus controladores, logout, y la carga de datos de prueba
+   (modo demo). */
+
+// ---- VISTA: LOGIN ----
+export function viewLogin() {
+  return `
+  <div class="min-h-screen flex">
+    <div class="hidden lg:flex lg:w-1/2 bg-brand-gradient items-center justify-center p-12 relative overflow-hidden">
+      <div class="absolute inset-0 opacity-10">
+        ${Array.from({length:12}, (_,i) => `<div class="absolute text-6xl" style="top:${Math.random()*90}%;left:${Math.random()*90}%;opacity:${0.3+Math.random()*0.7}">${['🐕','🐈','🐇','🦜','🐠'][i%5]}</div>`).join('')}
+      </div>
+      <div class="relative text-center text-white">
+        <div class="mb-6 flex justify-center">${icon('paw','w-20 h-20')}</div>
+        <h1 class="text-4xl font-bold mb-3">MyPets 3.0</h1>
+        <p class="text-lg text-purple-100 max-w-xs mx-auto">Tu compañero digital para el cuidado integral de tus mascotas</p>
+        <div class="mt-8 grid grid-cols-2 gap-4 text-sm">
+          <div class="bg-white/10 rounded-xl p-3"><div class="mb-1 flex justify-center">${icon('clipboard','w-6 h-6')}</div>Ficha médica completa</div>
+          <div class="bg-white/10 rounded-xl p-3"><div class="mb-1 flex justify-center">${icon('bell','w-6 h-6')}</div>Alertas automáticas</div>
+          <div class="bg-white/10 rounded-xl p-3"><div class="mb-1 flex justify-center">${icon('pill','w-6 h-6')}</div>Control de medicamentos</div>
+          <div class="bg-white/10 rounded-xl p-3"><div class="mb-1 flex justify-center">${icon('money','w-6 h-6')}</div>Control de gastos</div>
+        </div>
+      </div>
+    </div>
+    <div class="flex-1 overflow-y-auto">
+      <div class="min-h-full flex flex-col justify-center px-5 py-8 sm:px-8 lg:items-center">
+        <div class="w-full max-w-sm mx-auto animate-scale-in">
+          <!-- Logo solo móvil: compacto -->
+          <div class="lg:hidden flex items-center gap-3 mb-6">
+            <div class="w-10 h-10 rounded-2xl bg-brand-gradient flex items-center justify-center text-white font-black text-sm">MP</div>
+            <div>
+              <div class="font-bold text-gray-900 leading-none">MyPets 3.0</div>
+              <div class="text-xs text-brand-400 mt-0.5">Tu compañero digital</div>
+            </div>
+          </div>
+          <h2 class="text-2xl font-bold text-gray-900 mb-1">Bienvenido de vuelta</h2>
+          <p class="text-gray-500 text-sm mb-5">Ingresa a tu cuenta para continuar</p>
+          <form onsubmit="handleLogin(event)" class="space-y-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input id="l-email" type="email" required autocomplete="email" placeholder="tu@email.com" class="input-field" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+              <input id="l-pass" type="password" required autocomplete="current-password" placeholder="••••••••" class="input-field" />
+            </div>
+            <div class="flex items-center justify-between text-sm">
+              <label class="flex items-center gap-2 text-gray-600 cursor-pointer">
+                <input type="checkbox" class="rounded text-brand-500" /> Recordarme
+              </label>
+              <button type="button" onclick="navigate('forgot')" class="text-brand-600 hover:underline text-xs font-medium">¿Olvidaste tu contraseña?</button>
+            </div>
+            <button type="submit" class="btn-primary w-full !py-3 text-base">Iniciar Sesión</button>
+          </form>
+          <div class="mt-4 text-center text-sm text-gray-500">
+            ¿No tienes cuenta? <button onclick="navigate('register')" class="text-brand-600 font-semibold hover:underline">Regístrate gratis</button>
+          </div>
+          <div class="mt-4">
+            <button type="button" onclick="loadDemoAndLogin()"
+              class="w-full py-2.5 rounded-xl bg-brand-600 text-white text-sm font-bold hover:bg-brand-700 transition-colors">
+              ${icon('flask','w-4 h-4 inline align-text-bottom')} Ingresar con datos de prueba
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ---- VISTA: REGISTER ----
+export function viewRegister() {
+  return `
+  <div class="min-h-screen overflow-y-auto bg-gradient-to-br from-brand-50 to-teal-50">
+    <div class="min-h-full flex flex-col justify-center px-5 py-8 sm:px-8 sm:items-center">
+    <div class="w-full max-w-sm mx-auto animate-scale-in">
+      <div class="text-center mb-5">
+        <div class="inline-flex w-12 h-12 rounded-2xl bg-brand-gradient items-center justify-center text-white font-black mb-3">MP</div>
+        <h2 class="text-2xl font-bold text-gray-900">Crear cuenta</h2>
+        <p class="text-sm text-gray-500 mt-1">Únete a MyPets gratis</p>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm p-5 space-y-4">
+        <form onsubmit="handleRegister(event)" class="space-y-3">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre completo</label>
+            <input id="r-name" type="text" required placeholder="Tu nombre" class="input-field" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input id="r-email" type="email" required placeholder="tu@email.com" class="input-field" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+            <input id="r-pass" type="password" required minlength="6" placeholder="Mínimo 6 caracteres" class="input-field" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
+            <input id="r-pass2" type="password" required placeholder="Repite la contraseña" class="input-field" />
+          </div>
+          <button type="submit" class="btn-primary w-full !py-3">Crear cuenta gratuita</button>
+        </form>
+        <div class="text-center text-sm text-gray-500">
+          ¿Ya tienes cuenta? <button onclick="navigate('login')" class="text-brand-600 font-semibold hover:underline">Inicia sesión</button>
+        </div>
+      </div>
+    </div>
+    </div>
+  </div>`;
+}
+
+// ---- VISTA: RESET PASSWORD ----
+export function viewResetPassword() {
+  return `
+  <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 to-teal-50 p-6">
+    <div class="w-full max-w-sm animate-scale-in">
+      <div class="text-center mb-6">
+        <div class="mb-2 flex justify-center text-gray-300">${icon('lock','w-10 h-10')}</div>
+        <h2 class="text-2xl font-bold text-gray-900">Nueva contraseña</h2>
+        <p class="text-sm text-gray-500 mt-1">Crea una contraseña segura</p>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm p-6 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Nueva contraseña</label>
+          <input id="rp-pass" type="password" required minlength="6" placeholder="Mínimo 6 caracteres" class="input-field" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
+          <input id="rp-pass2" type="password" required placeholder="Repite la contraseña" class="input-field" />
+        </div>
+        <button onclick="handleResetPassword()" class="btn-primary w-full">Guardar nueva contraseña</button>
+        <button onclick="navigate('login')" class="w-full text-sm text-gray-500 hover:text-gray-700">← Volver al inicio</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+export async function handleResetPassword() {
+  const pass  = document.getElementById('rp-pass')?.value;
+  const pass2 = document.getElementById('rp-pass2')?.value;
+  if (!pass || pass.length < 6) { showToast('Mínimo 6 caracteres', 'error'); return; }
+  if (pass !== pass2) { showToast('Las contraseñas no coinciden', 'error'); return; }
+  showToast('Actualizando contraseña...', '');
+  const { error } = await sb.auth.updateUser({ password: pass });
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  await sb.auth.signOut();
+  state.isLoggedIn = false; state.user = null;
+  showToast('Contraseña actualizada. Inicia sesión.', 'success');
+  navigate('login');
+}
+
+// ---- VISTA: FORGOT ----
+export function viewForgot() {
+  return `
+  <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 to-teal-50 p-6">
+    <div class="w-full max-w-sm animate-scale-in">
+      <div class="text-center mb-6">
+        <div class="mb-2 flex justify-center text-gray-300">${icon('key','w-10 h-10')}</div>
+        <h2 class="text-2xl font-bold text-gray-900">Recuperar contraseña</h2>
+        <p class="text-sm text-gray-500 mt-1">Te enviaremos un enlace por email</p>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm p-6 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+          <input id="f-email" type="email" required placeholder="tu@email.com" class="input-field" />
+        </div>
+        <button onclick="handleForgot()" class="btn-primary w-full">Enviar enlace</button>
+        <button onclick="navigate('login')" class="w-full text-sm text-gray-500 hover:text-gray-700">← Volver al inicio de sesión</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ---- CONTROLADORES ----
+export async function handleLogin(e) {
+  e.preventDefault();
+  await login();
+}
+
+export async function login() {
+  const email = document.getElementById('l-email')?.value?.trim().toLowerCase();
+  const pass  = document.getElementById('l-pass')?.value;
+  if (!email || !pass) { showToast('Completa todos los campos', 'error'); return; }
+
+  // Demo mode — bypass Supabase
+  if (email === 'demo@mypets.cl') {
+    loadDemoAndLogin(); return;
+  }
+
+  showToast('Iniciando sesión...', '');
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { showToast(error.message === 'Invalid login credentials' ? 'Email o contraseña incorrectos' : error.message, 'error'); return; }
+
+  const userName = data.user.user_metadata?.name || email.split('@')[0];
+  state.user = { name: userName, email, id: data.user.id };
+  state.isLoggedIn = true;
+  saveState();
+  // Upsert defensivo: crea el perfil si nunca se creó (ej. trigger ausente) y
+  // de paso hace backfill del email para cuentas creadas antes de guardarlo.
+  await sb.from('profiles').upsert({ id: data.user.id, email, name: userName }, { onConflict: 'id' });
+  await loadDataFromSupabase();
+  showToast('¡Bienvenido! 👋', 'success');
+  navigate('dashboard', {}, { replace: true });
+}
+
+export async function handleRegister(e) {
+  e.preventDefault();
+  await register();
+}
+
+export async function register() {
+  const name  = document.getElementById('r-name')?.value?.trim();
+  const email = document.getElementById('r-email')?.value?.trim().toLowerCase();
+  const pass  = document.getElementById('r-pass')?.value;
+  const pass2 = document.getElementById('r-pass2')?.value;
+
+  if (!name || !email || !pass) { showToast('Completa todos los campos', 'error'); return; }
+  if (pass !== pass2) { showToast('Las contraseñas no coinciden', 'error'); return; }
+  if (pass.length < 6) { showToast('Mínimo 6 caracteres', 'error'); return; }
+
+  showToast('Creando cuenta...', '');
+  const { data, error } = await sb.auth.signUp({
+    email, password: pass,
+    options: { data: { name } }
+  });
+  if (error) {
+    showToast(error.message === 'User already registered' ? 'Email ya registrado' : error.message, 'error');
+    return;
+  }
+
+  state.user = { name, email, id: data.user?.id };
+  state.isLoggedIn = true;
+  state.pets = []; state.events = []; state.expenses = [];
+  saveState();
+  // profiles no guarda el email por defecto (vive en auth.users) — lo copiamos a
+  // la propia fila (creándola vía upsert si no existía) para que el panel de
+  // admin pueda mostrarlo sin acceso a auth.users.
+  if (data.user?.id) await sb.from('profiles').upsert({ id: data.user.id, email, name }, { onConflict: 'id' });
+  await loadDataFromSupabase();
+  showToast('¡Cuenta creada! Bienvenido 🎉', 'success');
+  navigate('dashboard', {}, { replace: true });
+}
+
+export async function handleForgot() {
+  await sendForgotEmail();
+}
+
+export async function sendForgotEmail() {
+  const email = document.getElementById('f-email')?.value?.trim().toLowerCase();
+  if (!email) { showToast('Ingresa tu email', 'error'); return; }
+
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + '?reset=true'
+  });
+  if (error) { showToast(error.message, 'error'); return; }
+  showToast(`Enlace enviado a ${email}`, 'success');
+  setTimeout(() => navigate('login'), 2000);
+}
+
+export async function logout() {
+  await sb.auth.signOut();
+  const fresh = { isLoggedIn: false, user: null, pets: [], events: [], expenses: [],
+    currentView: 'login', currentPetId: null, currentTab: 'general',
+    addPetStep: 1, newPetData: {}, pages: {} };
+  Object.assign(state, fresh);
+  localStorage.removeItem('mypets_v3');
+  history.replaceState(null, '', ROUTE_PATHS.login);
+  render();
+}
+
+// ---- DATOS DE PRUEBA ----
+export function loadDemoAndLogin() {
+  const id = () => genId();
+  const dt = (y, m, d) => `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+  const greta = {
+    id: 'pet-greta', name: 'Greta', species: 'Perro', breed: 'Mestizo', sex: 'Hembra',
+    dateOfBirth: dt(2021,3,15), photo: null, color: 'Dorado', sizeRange: 'Mediano',
+    weightKg: 12, weightGr: 500, reproductiveStatus: 'Esterilizado/a', chipNumber: '985112345678901',
+    activityLevel: 3, personalityTags: ['Sociable','Tranquilo','Cariñoso'],
+    allergies: ['Pollo','Pasto'], chronicConditions: ['Displasia de cadera'],
+    vet: { name: 'Dra. Valentina Rojas', clinic: 'Clínica Veterinaria Las Condes', phone: '+56912345678', email: 'vrojas@clinicavet.cl' },
+    tutor2: { name: 'María González', email: 'maria@gmail.com', role: 'edicion' },
+    vaccines: [
+      { id: id(), name: 'Polivalente DHPP (Distemper, Hepatitis, Parvovirus, Parainfluenza)', code: 'DHPP-21', date: dt(2021,6,10), periodicity: 12, nextDate: dt(2022,6,10), alertType: 'week', cost: 25000 },
+      { id: id(), name: 'Antirrábica', code: 'RAB-21', date: dt(2021,6,10), periodicity: 12, nextDate: dt(2022,6,10), alertType: 'same', cost: 18000 },
+      { id: id(), name: 'Polivalente DHPP (Distemper, Hepatitis, Parvovirus, Parainfluenza)', code: 'DHPP-22', date: dt(2022,6,8), periodicity: 12, nextDate: dt(2023,6,8), alertType: 'week', cost: 27000 },
+      { id: id(), name: 'Antirrábica', code: 'RAB-22', date: dt(2022,6,8), periodicity: 12, nextDate: dt(2023,6,8), alertType: 'same', cost: 19000 },
+      { id: id(), name: 'Leptospirosis', code: 'LEP-22', date: dt(2022,9,15), periodicity: 12, nextDate: dt(2023,9,15), alertType: 'week', cost: 22000 },
+      { id: id(), name: 'Polivalente DHPP (Distemper, Hepatitis, Parvovirus, Parainfluenza)', code: 'DHPP-23', date: dt(2023,6,5), periodicity: 12, nextDate: dt(2024,6,5), alertType: 'week', cost: 29000 },
+      { id: id(), name: 'Antirrábica', code: 'RAB-23', date: dt(2023,6,5), periodicity: 12, nextDate: dt(2024,6,5), alertType: 'same', cost: 21000 },
+      { id: id(), name: 'Bordetella (Tos de las perreras)', code: 'BOR-23', date: dt(2023,11,20), periodicity: 12, nextDate: dt(2024,11,20), alertType: 'week', cost: 20000 },
+      { id: id(), name: 'Polivalente DHPP (Distemper, Hepatitis, Parvovirus, Parainfluenza)', code: 'DHPP-24', date: dt(2024,6,3), periodicity: 12, nextDate: dt(2025,6,3), alertType: 'week', cost: 32000 },
+      { id: id(), name: 'Antirrábica', code: 'RAB-24', date: dt(2024,6,3), periodicity: 12, nextDate: dt(2025,6,3), alertType: 'same', cost: 23000 },
+      { id: id(), name: 'Polivalente DHPP (Distemper, Hepatitis, Parvovirus, Parainfluenza)', code: 'DHPP-25', date: dt(2025,6,10), periodicity: 12, nextDate: dt(2026,6,10), alertType: 'week', cost: 35000 },
+      { id: id(), name: 'Antirrábica', code: 'RAB-25', date: dt(2025,6,10), periodicity: 12, nextDate: dt(2026,6,10), alertType: 'same', cost: 25000 },
+    ],
+    deworming: [
+      { id: id(), product: 'Drontal Plus', type: 'Interna', format: 'Comprimido', dose: '1', unit: 'Comprimido(s)', date: dt(2023,3,1), nextDate: dt(2023,6,1), alertType: 'same' },
+      { id: id(), product: 'Frontline Combo', type: 'Externa', format: 'Pipeta', dose: '1.34', unit: 'ML', date: dt(2023,3,1), nextDate: dt(2023,6,1), alertType: 'same' },
+      { id: id(), product: 'Drontal Plus', type: 'Interna', format: 'Comprimido', dose: '1', unit: 'Comprimido(s)', date: dt(2023,6,1), nextDate: dt(2023,9,1), alertType: 'same' },
+      { id: id(), product: 'Frontline Combo', type: 'Externa', format: 'Pipeta', dose: '1.34', unit: 'ML', date: dt(2023,9,1), nextDate: dt(2023,12,1), alertType: 'week' },
+      { id: id(), product: 'Milbemax', type: 'Interna', format: 'Comprimido', dose: '1', unit: 'Comprimido(s)', date: dt(2024,1,10), nextDate: dt(2024,4,10), alertType: 'same', cost: 8500 },
+      { id: id(), product: 'Frontline Combo', type: 'Externa', format: 'Pipeta', dose: '1.34', unit: 'ML', date: dt(2024,4,10), nextDate: dt(2024,7,10), alertType: 'same', cost: 12000 },
+      { id: id(), product: 'Milbemax', type: 'Interna', format: 'Comprimido', dose: '1', unit: 'Comprimido(s)', date: dt(2024,7,10), nextDate: dt(2024,10,10), alertType: 'week', cost: 8500 },
+      { id: id(), product: 'Frontline Combo', type: 'Externa', format: 'Pipeta', dose: '1.34', unit: 'ML', date: dt(2024,10,10), nextDate: dt(2025,1,10), alertType: 'same', cost: 12000 },
+      { id: id(), product: 'Milbemax', type: 'Interna', format: 'Comprimido', dose: '1', unit: 'Comprimido(s)', date: dt(2025,2,5), nextDate: dt(2025,5,5), alertType: 'same', cost: 9000 },
+      { id: id(), product: 'Frontline Combo', type: 'Externa', format: 'Pipeta', dose: '1.34', unit: 'ML', date: dt(2025,5,5), nextDate: dt(2025,8,5), alertType: 'week', cost: 13000 },
+      { id: id(), product: 'Milbemax', type: 'Interna', format: 'Comprimido', dose: '1', unit: 'Comprimido(s)', date: dt(2025,8,5), nextDate: dt(2025,11,5), alertType: 'same', cost: 9000 },
+      { id: id(), product: 'Frontline Combo', type: 'Externa', format: 'Pipeta', dose: '1.34', unit: 'ML', date: dt(2026,2,10), nextDate: dt(2026,5,10), alertType: 'same', cost: 14000 },
+    ],
+    medications: [
+      { id: id(), name: 'Meloxicam', doseVal: '1', doseUnit: 'mg', dose: '1 mg', freqN: '24', freqUnit: 'horas', frequency: 'Cada 24 horas', startDate: dt(2023,8,1), startTime: '08:00', treatmentDays: 10, endDate: dt(2023,8,11), active: false, reminder: 'exact', stockTotal: '', cost: 5500 },
+      { id: id(), name: 'Tramadol', doseVal: '50', doseUnit: 'mg', dose: '50 mg', freqN: '8', freqUnit: 'horas', frequency: 'Cada 8 horas', startDate: dt(2023,8,1), startTime: '08:00', treatmentDays: 5, endDate: dt(2023,8,6), active: false, reminder: '30', stockTotal: '', cost: 8000 },
+      { id: id(), name: 'Omeprazol', doseVal: '20', doseUnit: 'mg', dose: '20 mg', freqN: '24', freqUnit: 'horas', frequency: 'Cada 24 horas', startDate: dt(2024,3,15), startTime: '08:00', treatmentDays: 30, endDate: dt(2024,4,14), active: false, reminder: 'exact', stockTotal: '30', stockUnit: 'Comprimidos', expiry: dt(2025,12,31), cost: 12000 },
+      { id: id(), name: 'Carprofeno', doseVal: '25', doseUnit: 'mg', dose: '25 mg', freqN: '12', freqUnit: 'horas', frequency: 'Cada 12 horas', startDate: dt(2025,1,10), startTime: '08:00', treatmentDays: 14, endDate: dt(2025,1,24), active: false, reminder: '15', cost: 9500 },
+      { id: id(), name: 'Gabapentina', doseVal: '100', doseUnit: 'mg', dose: '100 mg', freqN: '12', freqUnit: 'horas', frequency: 'Cada 12 horas', startDate: dt(2026,4,1), startTime: '08:00', treatmentDays: 60, endDate: dt(2026,5,31), active: true, reminder: 'exact', stockTotal: '45', stockUnit: 'Comprimidos', expiry: dt(2027,3,1), cost: 18000 },
+    ],
+    clinicalHistory: [
+      { id: id(), title: 'Esterilización', type: 'Esterilización', date: dt(2022,4,20), doctor: 'Dra. Valentina Rojas', clinic: 'Clínica Vet. Las Condes', cost: 180000, notes: 'Procedimiento sin complicaciones. Alta el mismo día.' },
+      { id: id(), title: 'Fractura metacarpo derecho', type: 'Cirugía', date: dt(2023,7,28), doctor: 'Dr. Patricio Vega', clinic: 'Clínica Vet. Las Condes', cost: 320000, notes: 'Caída desde altura. Osteosíntesis con placa. Reposo 6 semanas.' },
+      { id: id(), title: 'Control displasia cadera', type: 'Diagnóstico', date: dt(2024,2,14), doctor: 'Dra. Valentina Rojas', clinic: 'Clínica Vet. Las Condes', cost: 45000, notes: 'Radiografías confirman displasia leve. Se indica manejo con suplementos y ejercicio moderado.' },
+      { id: id(), title: 'Limpieza dental', type: 'Procedimiento', date: dt(2024,9,5), doctor: 'Dra. Valentina Rojas', clinic: 'Clínica Vet. Las Condes', cost: 95000, notes: 'Sarro moderado. Extracción de pieza P4 izquierda inferior.' },
+      { id: id(), title: 'Control anual + exámenes', type: 'Diagnóstico', date: dt(2025,3,20), doctor: 'Dra. Valentina Rojas', clinic: 'Clínica Vet. Las Condes', cost: 68000, notes: 'Hemograma y perfil bioquímico normales. Peso estable. Todo en orden.' },
+      { id: id(), title: 'Control displasia + ecografía', type: 'Diagnóstico', date: dt(2026,1,8), doctor: 'Dra. Valentina Rojas', clinic: 'Clínica Vet. Las Condes', cost: 85000, notes: 'Leve progresión displasia. Se agrega gabapentina para manejo dolor crónico.' },
+    ],
+    weightHistory: [
+      { date: dt(2026,1,15), kg: 12, gr: 200 }, { date: dt(2026,2,1), kg: 12, gr: 500 },
+      { date: dt(2026,2,15), kg: 12, gr: 800 }, { date: dt(2026,3,1), kg: 13, gr: 0 },
+      { date: dt(2026,3,15), kg: 12, gr: 900 }, { date: dt(2026,4,1), kg: 12, gr: 700 },
+      { date: dt(2026,4,15), kg: 12, gr: 600 }, { date: dt(2026,5,1), kg: 12, gr: 500 },
+      { date: dt(2026,5,12), kg: 12, gr: 400 },
+    ],
+    moodLog: [
+      { date: dt(2026,5,9), mood: 'great', notes: 'Muy activa en el parque' },
+      { date: dt(2026,5,10), mood: 'ok', notes: '' },
+      { date: dt(2026,5,11), mood: 'low', notes: 'Comió poco' },
+      { date: dt(2026,5,12), mood: 'ok', notes: 'Mejorando' },
+      { date: dt(2026,5,13), mood: 'great', notes: '' },
+      { date: dt(2026,5,14), mood: 'great', notes: 'Jugó toda la tarde' },
+    ],
+    symptomsLog: [
+      { date: dt(2026,5,11), symptoms: ['Sin apetito','Letargo'], notes: 'Posiblemente por el antibiótico' },
+      { date: dt(2026,5,9), symptoms: ['Rascado'], notes: 'Se rasca la pata derecha' },
+    ],
+    foodItems: [
+      { id: 'food-greta-1', product: 'Royal Canin Adult', type: 'Seco', packageSize: 15, packageUnit: 'kg', dailyAmount: 0.24, price: 62000, purchaseDate: daysFromNowStr(-45), notes: '' },
+    ],
+    activities: [
+      { date: todayStr(), type: 'Normal' },
+      { date: daysFromNowStr(-1), type: 'Mucho' },
+      { date: daysFromNowStr(-2), type: 'Normal' },
+      { date: daysFromNowStr(-3), type: 'Poco' },
+      { date: daysFromNowStr(-4), type: 'Normal' },
+    ],
+    doseLog: [
+      { date: dt(2026,5,8), given: true }, { date: dt(2026,5,9), given: true },
+      { date: dt(2026,5,10), given: true }, { date: dt(2026,5,11), given: true },
+      { date: dt(2026,5,12), given: true }, { date: dt(2026,5,13), given: true },
+      { date: dt(2026,5,14), given: true },
+    ],
+    bcs: 5,
+  };
+
+  const luna = {
+    id: 'pet-luna', name: 'Luna', species: 'Gato', breed: 'Siamés', sex: 'Hembra',
+    dateOfBirth: dt(2022,8,20), photo: null, color: 'Crema', sizeRange: 'Pequeño',
+    weightKg: 3, weightGr: 800, reproductiveStatus: 'Esterilizado/a', chipNumber: '985198765432100',
+    activityLevel: 2, personalityTags: ['Independiente','Tranquilo'],
+    allergies: ['Maíz'], chronicConditions: ['Ninguna'],
+    vet: { name: 'Dra. Valentina Rojas', clinic: 'Clínica Veterinaria Las Condes', phone: '+56912345678', email: 'vrojas@clinicavet.cl' },
+    tutor2: null,
+    vaccines: [
+      { id: id(), name: 'Triple Felina (Panleucopenia, Rinotraqueítis, Calicivirus)', code: 'TF-22', date: dt(2022,10,5), periodicity: 12, nextDate: dt(2023,10,5), alertType: 'week', cost: 28000 },
+      { id: id(), name: 'Antirrábica', code: 'RAB-22F', date: dt(2022,10,5), periodicity: 12, nextDate: dt(2023,10,5), alertType: 'same', cost: 18000 },
+      { id: id(), name: 'Triple Felina (Panleucopenia, Rinotraqueítis, Calicivirus)', code: 'TF-23', date: dt(2023,10,3), periodicity: 12, nextDate: dt(2024,10,3), alertType: 'week', cost: 30000 },
+      { id: id(), name: 'Antirrábica', code: 'RAB-23F', date: dt(2023,10,3), periodicity: 12, nextDate: dt(2024,10,3), alertType: 'same', cost: 20000 },
+      { id: id(), name: 'Leucemia Felina (FeLV)', code: 'FEL-23', date: dt(2023,10,3), periodicity: 12, nextDate: dt(2024,10,3), alertType: 'week', cost: 35000 },
+      { id: id(), name: 'Triple Felina (Panleucopenia, Rinotraqueítis, Calicivirus)', code: 'TF-24', date: dt(2024,10,7), periodicity: 12, nextDate: dt(2025,10,7), alertType: 'week', cost: 32000 },
+      { id: id(), name: 'Antirrábica', code: 'RAB-24F', date: dt(2024,10,7), periodicity: 12, nextDate: dt(2025,10,7), alertType: 'same', cost: 22000 },
+      { id: id(), name: 'Triple Felina (Panleucopenia, Rinotraqueítis, Calicivirus)', code: 'TF-25', date: dt(2025,10,10), periodicity: 12, nextDate: dt(2026,10,10), alertType: 'week', cost: 35000 },
+    ],
+    deworming: [
+      { id: id(), product: 'Profender', type: 'Interna', format: 'Pipeta', dose: '0.35', unit: 'ML', date: dt(2023,1,15), nextDate: dt(2023,7,15), alertType: 'same', cost: 14000 },
+      { id: id(), product: 'Broadline', type: 'Ambas', format: 'Pipeta', dose: '0.3', unit: 'ML', date: dt(2023,7,15), nextDate: dt(2024,1,15), alertType: 'same', cost: 16000 },
+      { id: id(), product: 'Broadline', type: 'Ambas', format: 'Pipeta', dose: '0.3', unit: 'ML', date: dt(2024,1,15), nextDate: dt(2024,7,15), alertType: 'same', cost: 16000 },
+      { id: id(), product: 'Broadline', type: 'Ambas', format: 'Pipeta', dose: '0.3', unit: 'ML', date: dt(2024,7,15), nextDate: dt(2025,1,15), alertType: 'week', cost: 17000 },
+      { id: id(), product: 'Broadline', type: 'Ambas', format: 'Pipeta', dose: '0.3', unit: 'ML', date: dt(2025,1,15), nextDate: dt(2025,7,15), alertType: 'same', cost: 17000 },
+      { id: id(), product: 'Broadline', type: 'Ambas', format: 'Pipeta', dose: '0.3', unit: 'ML', date: dt(2025,7,15), nextDate: dt(2026,1,15), alertType: 'same', cost: 18000 },
+      { id: id(), product: 'Broadline', type: 'Ambas', format: 'Pipeta', dose: '0.3', unit: 'ML', date: dt(2026,1,20), nextDate: dt(2026,7,20), alertType: 'same', cost: 18000 },
+    ],
+    medications: [
+      { id: id(), name: 'Prednisolona', doseVal: '5', doseUnit: 'mg', dose: '5 mg', freqN: '24', freqUnit: 'horas', frequency: 'Cada 24 horas', startDate: dt(2024,5,10), startTime: '08:00', treatmentDays: 7, endDate: dt(2024,5,17), active: false, reminder: 'exact', cost: 7000 },
+      { id: id(), name: 'Amoxicilina', doseVal: '62.5', doseUnit: 'mg', dose: '62.5 mg', freqN: '12', freqUnit: 'horas', frequency: 'Cada 12 horas', startDate: dt(2025,2,3), startTime: '08:00', treatmentDays: 10, endDate: dt(2025,2,13), active: false, reminder: '15', cost: 9500 },
+      { id: id(), name: 'Suplemento Articular (Cosequin)', doseVal: '1', doseUnit: 'Comprimido(s)', dose: '1 Comprimido(s)', freqN: '24', freqUnit: 'horas', frequency: 'Cada 24 horas', startDate: dt(2026,3,1), startTime: '08:00', treatmentDays: 90, endDate: dt(2026,5,30), active: true, reminder: 'exact', stockTotal: '60', stockUnit: 'Comprimidos', expiry: dt(2027,6,1), cost: 25000 },
+    ],
+    clinicalHistory: [
+      { id: id(), title: 'Esterilización', type: 'Esterilización', date: dt(2023,3,10), doctor: 'Dra. Valentina Rojas', clinic: 'Clínica Vet. Las Condes', cost: 160000, notes: 'Sin complicaciones. Alta el mismo día. Ayuno 12h previo.' },
+      { id: id(), title: 'Infección urinaria', type: 'Diagnóstico', date: dt(2025,2,1), doctor: 'Dra. Valentina Rojas', clinic: 'Clínica Vet. Las Condes', cost: 55000, notes: 'Urocultivo positivo E. coli. Tratamiento antibiótico 10 días. Dieta húmeda.' },
+      { id: id(), title: 'Control renal preventivo', type: 'Diagnóstico', date: dt(2026,3,1), doctor: 'Dra. Valentina Rojas', clinic: 'Clínica Vet. Las Condes', cost: 48000, notes: 'Creatinina y BUN dentro de rango normal. Ecografía renal sin hallazgos.' },
+    ],
+    weightHistory: [
+      { date: dt(2026,1,15), kg: 3, gr: 600 }, { date: dt(2026,2,1), kg: 3, gr: 700 },
+      { date: dt(2026,2,15), kg: 3, gr: 750 }, { date: dt(2026,3,1), kg: 3, gr: 800 },
+      { date: dt(2026,3,15), kg: 3, gr: 800 }, { date: dt(2026,4,1), kg: 3, gr: 750 },
+      { date: dt(2026,4,15), kg: 3, gr: 700 }, { date: dt(2026,5,1), kg: 3, gr: 680 },
+      { date: dt(2026,5,12), kg: 3, gr: 650 },
+    ],
+    moodLog: [
+      { date: dt(2026,5,9), mood: 'ok', notes: 'Normal, durmió mucho' },
+      { date: dt(2026,5,10), mood: 'ok', notes: '' },
+      { date: dt(2026,5,11), mood: 'great', notes: 'Jugó con el ratón de peluche' },
+      { date: dt(2026,5,12), mood: 'ok', notes: '' },
+      { date: dt(2026,5,13), mood: 'great', notes: 'Muy activa' },
+      { date: dt(2026,5,14), mood: 'ok', notes: 'Tranquila' },
+    ],
+    symptomsLog: [
+      { date: dt(2026,5,10), symptoms: ['Estornudos'], notes: 'Algunos estornudos por la mañana' },
+    ],
+    foodItems: [
+      { id: 'food-luna-1', product: 'Royal Canin Siamese', type: 'Seco', packageSize: 4, packageUnit: 'kg', dailyAmount: 0.08, price: 28000, purchaseDate: daysFromNowStr(-46), notes: '' },
+    ],
+    activities: [
+      { date: todayStr(), type: 'Poco' },
+      { date: daysFromNowStr(-1), type: 'Normal' },
+      { date: daysFromNowStr(-3), type: 'Poco' },
+    ],
+    doseLog: [
+      { date: dt(2026,5,10), given: true }, { date: dt(2026,5,11), given: true },
+      { date: dt(2026,5,12), given: true }, { date: dt(2026,5,13), given: true },
+      { date: dt(2026,5,14), given: true },
+    ],
+    bcs: 4,
+  };
+
+  const coco = {
+    id: 'pet-coco', name: 'Coco', species: 'Conejo', breed: 'Enano de Holanda', sex: 'Macho',
+    dateOfBirth: dt(2023,11,5), photo: null, color: 'Blanco', sizeRange: 'Pequeño',
+    weightKg: 1, weightGr: 200, reproductiveStatus: 'Castrado/a', chipNumber: '',
+    activityLevel: 2, personalityTags: ['Juguetón','Tímido'],
+    allergies: [], chronicConditions: ['Ninguna'],
+    vet: { name: 'Dr. Rodrigo Méndez', clinic: 'Exotic Pets Vet', phone: '+56987654321', email: 'rmendez@exoticvet.cl' },
+    tutor2: null,
+    vaccines: [
+      { id: id(), name: 'Mixomatosis', code: 'MIX-24', date: dt(2024,2,10), periodicity: 12, nextDate: dt(2025,2,10), alertType: 'week', cost: 32000 },
+      { id: id(), name: 'Enfermedad Vírica Hemorrágica (RHD)', code: 'RHD-24', date: dt(2024,2,10), periodicity: 12, nextDate: dt(2025,2,10), alertType: 'week', cost: 32000 },
+      { id: id(), name: 'Mixomatosis', code: 'MIX-25', date: dt(2025,2,8), periodicity: 12, nextDate: dt(2026,2,8), alertType: 'week', cost: 35000 },
+      { id: id(), name: 'Enfermedad Vírica Hemorrágica (RHD)', code: 'RHD-25', date: dt(2025,2,8), periodicity: 12, nextDate: dt(2026,2,8), alertType: 'week', cost: 35000 },
+    ],
+    deworming: [
+      { id: id(), product: 'Panacur (Fenbendazol)', type: 'Interna', format: 'Jarabe', dose: '0.5', unit: 'ML', date: dt(2024,3,1), nextDate: dt(2024,9,1), alertType: 'same', cost: 11000 },
+      { id: id(), product: 'Panacur (Fenbendazol)', type: 'Interna', format: 'Jarabe', dose: '0.5', unit: 'ML', date: dt(2024,9,1), nextDate: dt(2025,3,1), alertType: 'same', cost: 11000 },
+      { id: id(), product: 'Panacur (Fenbendazol)', type: 'Interna', format: 'Jarabe', dose: '0.5', unit: 'ML', date: dt(2025,3,1), nextDate: dt(2025,9,1), alertType: 'same', cost: 12000 },
+      { id: id(), product: 'Panacur (Fenbendazol)', type: 'Interna', format: 'Jarabe', dose: '0.5', unit: 'ML', date: dt(2025,9,1), nextDate: dt(2026,3,1), alertType: 'same', cost: 12000 },
+      { id: id(), product: 'Panacur (Fenbendazol)', type: 'Interna', format: 'Jarabe', dose: '0.5', unit: 'ML', date: dt(2026,3,5), nextDate: dt(2026,9,5), alertType: 'same', cost: 13000 },
+    ],
+    medications: [
+      { id: id(), name: 'Meloxicam (post castración)', doseVal: '0.5', doseUnit: 'mg', dose: '0.5 mg', freqN: '24', freqUnit: 'horas', frequency: 'Cada 24 horas', startDate: dt(2024,6,15), startTime: '08:00', treatmentDays: 5, endDate: dt(2024,6,20), active: false, reminder: 'exact', cost: 4500 },
+    ],
+    clinicalHistory: [
+      { id: id(), title: 'Castración', type: 'Esterilización', date: dt(2024,6,15), doctor: 'Dr. Rodrigo Méndez', clinic: 'Exotic Pets Vet', cost: 120000, notes: 'Procedimiento sin complicaciones. Alta el mismo día. Dieta blanda 48h.' },
+      { id: id(), title: 'Control bienestar + corte uñas', type: 'Procedimiento', date: dt(2025,1,20), doctor: 'Dr. Rodrigo Méndez', clinic: 'Exotic Pets Vet', cost: 22000, notes: 'Todo en orden. Peso ideal. Se realizó corte de uñas y revisión dental.' },
+      { id: id(), title: 'Control general 1 año', type: 'Diagnóstico', date: dt(2025,11,5), doctor: 'Dr. Rodrigo Méndez', clinic: 'Exotic Pets Vet', cost: 28000, notes: 'Primer año de vida sin incidentes. Buen desarrollo. Dieta correcta.' },
+    ],
+    weightHistory: [
+      { date: dt(2026,1,15), kg: 1, gr: 150 }, { date: dt(2026,2,1), kg: 1, gr: 180 },
+      { date: dt(2026,2,15), kg: 1, gr: 200 }, { date: dt(2026,3,1), kg: 1, gr: 210 },
+      { date: dt(2026,3,15), kg: 1, gr: 220 }, { date: dt(2026,4,1), kg: 1, gr: 200 },
+      { date: dt(2026,5,1), kg: 1, gr: 190 }, { date: dt(2026,5,12), kg: 1, gr: 180 },
+    ],
+    moodLog: [
+      { date: dt(2026,5,12), mood: 'great', notes: 'Corrió por toda la habitación' },
+      { date: dt(2026,5,13), mood: 'ok', notes: '' },
+      { date: dt(2026,5,14), mood: 'great', notes: 'Comió bien todos sus pellets' },
+    ],
+    symptomsLog: [],
+    foodItems: [
+      { id: 'food-coco-1', product: 'Pellets + heno Timothy', type: 'Seco', packageSize: 2, packageUnit: 'kg', dailyAmount: 0.03, price: 9000, purchaseDate: daysFromNowStr(-2), notes: '' },
+    ],
+    activities: [
+      { date: todayStr(), type: 'Mucho' },
+      { date: daysFromNowStr(-1), type: 'Mucho' },
+      { date: daysFromNowStr(-2), type: 'Normal' },
+    ],
+    doseLog: [],
+    bcs: 5,
+  };
+
+  // Construir gastos a partir de todos los registros
+  const buildExpenses = (pets) => {
+    const exps = [];
+    const push = (desc, amount, date, cat, pet, tutor) =>
+      exps.push({ id: id(), description: desc, amount, date, category: cat, pet, tutor });
+
+    // Gastos de Greta
+    greta.vaccines.forEach(v => push(`Vacuna ${v.name.split(' ')[0]} – Greta`, v.cost||0, v.date, 'Veterinaria', 'Greta', 'Felipe Molina'));
+    greta.deworming.forEach(d => d.cost && push(`Desparasitación ${d.product} – Greta`, d.cost, d.date, 'Veterinaria', 'Greta', 'Felipe Molina'));
+    greta.medications.forEach(m => m.cost && push(`Medicamento ${m.name} – Greta`, m.cost, m.startDate, 'Medicamentos', 'Greta', 'Felipe Molina'));
+    greta.clinicalHistory.forEach(h => h.cost && push(`${h.title} – Greta`, h.cost, h.date, 'Veterinaria', 'Greta', 'Felipe Molina'));
+
+    // Gastos de Luna
+    luna.vaccines.forEach(v => push(`Vacuna ${v.name.split(' ')[0]} – Luna`, v.cost||0, v.date, 'Veterinaria', 'Luna', 'Felipe Molina'));
+    luna.deworming.forEach(d => d.cost && push(`Desparasitación ${d.product} – Luna`, d.cost, d.date, 'Veterinaria', 'Luna', 'Felipe Molina'));
+    luna.medications.forEach(m => m.cost && push(`Medicamento ${m.name} – Luna`, m.cost, m.startDate, 'Medicamentos', 'Luna', 'Felipe Molina'));
+    luna.clinicalHistory.forEach(h => h.cost && push(`${h.title} – Luna`, h.cost, h.date, 'Veterinaria', 'Luna', 'Felipe Molina'));
+
+    // Gastos de Coco
+    coco.vaccines.forEach(v => push(`Vacuna ${v.name.split(' ')[0]} – Coco`, v.cost||0, v.date, 'Veterinaria', 'Coco', 'Felipe Molina'));
+    coco.deworming.forEach(d => d.cost && push(`Desparasitación ${d.product} – Coco`, d.cost, d.date, 'Veterinaria', 'Coco', 'Felipe Molina'));
+    coco.medications.forEach(m => m.cost && push(`Medicamento ${m.name} – Coco`, m.cost, m.startDate, 'Medicamentos', 'Coco', 'Felipe Molina'));
+    coco.clinicalHistory.forEach(h => h.cost && push(`${h.title} – Coco`, h.cost, h.date, 'Veterinaria', 'Coco', 'Felipe Molina'));
+
+    // Gastos de alimentación mensuales
+    const months = [];
+    for (let y = 2023; y <= 2026; y++) {
+      for (let m = 1; m <= 12; m++) {
+        if (y === 2026 && m > 5) break;
+        months.push(dt(y, m, 5));
+      }
+    }
+    months.forEach(d => {
+      push('Alimento Premium Greta (10kg)', 32000, d, 'Alimentación', 'Greta', 'Felipe Molina');
+      push('Alimento Royal Canin Luna', 24000, d, 'Alimentación', 'Luna', 'Felipe Molina');
+      if (d >= dt(2024,1,1)) push('Alimento Timothy Hay + Pellets Coco', 15000, d, 'Alimentación', 'Coco', 'Felipe Molina');
+    });
+
+    // Peluquería Greta
+    ['2023-04-10','2023-07-15','2023-10-20','2024-01-12','2024-04-18','2024-07-22','2024-10-15','2025-01-20','2025-04-10','2025-07-18','2025-10-14','2026-01-25','2026-04-22'].forEach(d =>
+      push('Peluquería Greta', 25000, d, 'Peluquería', 'Greta', 'Felipe Molina'));
+
+    return exps.filter(e => e.amount > 0);
+  };
+
+  const events = [
+    { id: id(), title: 'Vacuna anual Greta', type: 'Vacuna', date: dt(2026,6,10), pet: 'Greta', notes: 'DHPP + Rabia' },
+    { id: id(), title: 'Vacuna anual Luna', type: 'Vacuna', date: dt(2026,6,15), pet: 'Luna', notes: 'Triple Felina + Rabia' },
+    { id: id(), title: 'Control displasia Greta', type: 'Consulta', date: dt(2026,6,20), pet: 'Greta', notes: 'Radiografías cadera' },
+    { id: id(), title: 'Desparasitación Greta', type: 'Consulta', date: dt(2026,5,10), pet: 'Greta', notes: 'Frontline Combo' },
+    { id: id(), title: 'Desparasitación Luna', type: 'Consulta', date: dt(2026,7,20), pet: 'Luna', notes: 'Broadline' },
+    { id: id(), title: 'Desparasitación Coco', type: 'Consulta', date: dt(2026,9,5), pet: 'Coco', notes: 'Panacur' },
+    { id: id(), title: 'Peluquería Greta', type: 'Peluquería', date: dt(2026,6,5), pet: 'Greta', notes: 'Corte de verano' },
+    { id: id(), title: 'Control general Luna', type: 'Examen', date: dt(2026,7,10), pet: 'Luna', notes: 'Examen renal anual' },
+    { id: id(), title: 'Control Coco 2 años', type: 'Consulta', date: dt(2026,8,5), pet: 'Coco', notes: 'Revisión dental' },
+  ];
+
+  const demoState = {
+    user: { name: 'Felipe Molina', email: 'demo@mypets.cl' },
+    isLoggedIn: true,
+    pets: [greta, luna, coco],
+    events,
+    expenses: buildExpenses([greta, luna, coco]),
+    botiquin: [
+      { id: genId(), name: 'Vendas elásticas', category: 'Vendaje', petId: null, quantity: 3, unit: 'unidades', expiryDate: null, notes: '', status: 'disponible' },
+      { id: genId(), name: 'Jeringas 5ml', category: 'Accesorio', petId: null, quantity: 4, unit: 'unidades', expiryDate: dt(2027,3,1), notes: '', status: 'por_agotarse' },
+      { id: genId(), name: 'Suero fisiológico', category: 'Higiene', petId: null, quantity: 0, unit: 'frascos', expiryDate: dt(2026,10,1), notes: 'Reponer en próxima compra', status: 'agotado' },
+    ],
+  };
+
+  Object.assign(state, demoState);
+  saveState();
+  showToast('Datos de prueba cargados (3 años)', 'success');
+  navigate('dashboard', {}, { replace: true });
+}
+
+if (typeof window !== 'undefined') {
+  Object.assign(window, {
+    viewLogin, viewRegister, viewResetPassword, handleResetPassword, viewForgot,
+    handleLogin, login, handleRegister, register, handleForgot, sendForgotEmail,
+    logout, loadDemoAndLogin,
+  });
+}

@@ -5,7 +5,8 @@
   "description": "Sin build step para la app en sí — este package.json es solo para tests (Vitest). El sitio se sigue sirviendo tal cual: index.html, css/style.css, js/app.js, js/utils.js.",
   "scripts": {
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check-exports": "node scripts/check-exports.mjs"
   },
   "devDependencies": {
     "vitest": "^2.1.9"

@@ -117,28 +117,42 @@ Todas las tablas tienen **Row Level Security (RLS)** activo — cada usuario sol
 
 ```
 MyPets-3.0/
-├── index.html          # Punto de entrada + CDN scripts
-├── vercel.json         # Reescribe cualquier ruta a index.html (rutas reales en prod)
-├── package.json        # Solo para tests (Vitest) — la app en sí no tiene build step
+├── index.html               # Punto de entrada + CDN scripts
+├── vercel.json               # Reescribe cualquier ruta a index.html (rutas reales en prod)
+├── package.json               # Solo para tests (Vitest) — la app en sí no tiene build step
 ├── css/
-│   └── style.css       # Estilos personalizados y animaciones
+│   └── style.css              # Estilos personalizados y animaciones
 ├── scripts/
-│   └── spa-server.py   # Servidor local con el mismo fallback de vercel.json
+│   ├── spa-server.py          # Servidor local con el mismo fallback de vercel.json
+│   └── check-exports.mjs      # Verifica que toda función usada en onclick="..." esté exportada
 └── js/
-    ├── utils.js         # Utilidades puras: fechas, formato, cálculo de estado (~200 líneas)
-    ├── utils.test.js    # Tests de Vitest para js/utils.js
-    └── app.js           # Resto de la aplicación (~5400 líneas)
+    ├── utils.js                    # Utilidades puras: fechas, formato, cálculo de estado
+    ├── utils.test.js               # Tests de Vitest para js/utils.js
+    ├── exports.test.js             # Corre check-exports.mjs como parte de `npm test`
+    ├── app.js                      # Núcleo: estado, router, shell de UI, iconos, render/initApp
+    ├── data.js                     # Carga de datos desde Supabase (mascotas, admin, agenda, gastos)
+    ├── auth.js                     # Login/registro/logout y datos de demo
+    ├── dashboard.js                # Vista de inicio
+    ├── pets.js                     # Alta, ficha, edición, borrado y segundo tutor
+    ├── vaccines-dewormings.js      # Vacunas y desparasitaciones
+    ├── medications-history.js      # Tratamientos e historial clínico
+    ├── calendar.js                 # Agenda
+    ├── finance.js                  # Finanzas
+    ├── botiquin.js                 # Botiquín
+    ├── tracking.js                 # Seguimiento y Nutrición
+    └── admin.js                    # Panel de administrador SaaS
 ```
 
 **Sin build step para la app.** Los archivos se sirven tal cual — ver
-[Deploy](#deploy). `js/utils.js` se carga como módulo ES nativo
-(`<script type="module">`) antes de `js/app.js`, que sigue siendo un
-script clásico sin cambios; sus funciones quedan expuestas en `window`
-para que `app.js` las siga llamando exactamente igual que antes. Es el
-primer módulo extraído del archivo único original — partir el resto
-(vistas, modales, llamadas a Supabase) en módulos por feature queda
-pendiente como una fase separada, más grande y de mayor riesgo porque
-toca las 127 funciones que el HTML generado invoca vía `onclick="..."`.
+[Deploy](#deploy). Todos los `js/*.js` se cargan como módulos ES nativos
+(`<script type="module">`); ninguno importa de otro — cada función y
+constante de nivel superior se expone además en `window` al final de su
+archivo (misma convención en los 13 archivos), así que se siguen llamando
+entre sí como globales exactamente igual que en el archivo único original.
+`scripts/check-exports.mjs` (corrido en `npm test`) verifica automáticamente
+que toda función referenciada desde un `onclick="..."` del HTML generado
+esté realmente exportada — si falta una, el botón correspondiente se
+rompería en silencio, y este chequeo lo convierte en un test que falla.
 
 ### Tests
 
@@ -148,15 +162,21 @@ npm test        # corre una vez
 npm run test:watch   # modo watch
 ```
 
-Cubre las funciones de `js/utils.js`: aritmética de fechas en zona local
-(el bug de UTC que se corrigió esta sesión), los 3 niveles de alerta de
-`careAlertStatus()`, los umbrales de `medStockStatus()`/`foodStockStatus()`,
-y el escape de HTML de `esc()`. El resto de la app (vistas, Supabase) no
-tiene tests todavía — depende de verificación manual en el navegador.
+Cubre las funciones de `js/utils.js` (aritmética de fechas en zona local,
+los 3 niveles de alerta de `careAlertStatus()`, los umbrales de
+`medStockStatus()`/`foodStockStatus()`, el escape de HTML de `esc()`) y,
+vía `js/exports.test.js`, que ningún botón quede roto por una función sin
+exportar tras mover código entre archivos. El resto de la app (vistas,
+Supabase) no tiene tests todavía — depende de verificación manual en el
+navegador.
 
 ---
 
-## Módulos principales (`app.js`)
+## Funciones principales
+
+Repartidas entre `js/*.js` según la tabla de la sección anterior (ej.
+`viewDashboard()` vive en `js/dashboard.js`, `saveVaccine()` en
+`js/vaccines-dewormings.js`, etc.):
 
 | Función | Descripción |
 |---|---|
