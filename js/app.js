@@ -566,6 +566,7 @@ export function injectStyles() {
       .modal-box{animation:slideUpModal .3s cubic-bezier(.32,.72,0,1) both}
     }
     @media print {
+      @page { margin: 1.2cm; }
       .modal-overlay { position:static !important; background:none !important; overflow:visible !important; }
       .modal-box { box-shadow:none !important; max-height:none !important; border-radius:0 !important; }
       aside, nav, .modal-overlay > div > div:last-child { display:none !important; }

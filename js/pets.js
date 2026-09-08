@@ -326,7 +326,7 @@ export function viewPetProfile() {
 
   return appShell(`
     <div class="max-w-3xl mx-auto">
-      <button onclick="navigate('pets')" class="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-4">
+      <button onclick="navigate('pets')" class="print:hidden flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-4">
         ← Mis Mascotas
       </button>
       <div class="bg-white rounded-2xl shadow-sm p-4 md:p-5 mb-4">
@@ -339,7 +339,7 @@ export function viewPetProfile() {
                 <div class="text-xs md:text-sm text-gray-400">${pet.species} · ${pet.breed || 'Mestizo'}${pet.sex ? ` · ${pet.sex}` : ''}</div>
                 <div class="text-xs md:text-sm text-gray-400">${getAge(pet.dateOfBirth)}</div>
               </div>
-              <div class="flex gap-1.5 flex-shrink-0">
+              <div class="print:hidden flex gap-1.5 flex-shrink-0">
                 <button onclick="openEditPetModal('${pet.id}')"
                   title="Editar"
                   class="w-8 h-8 md:w-auto md:h-auto md:px-3 md:py-1.5 rounded-xl bg-gray-50 hover:bg-brand-50 text-gray-500 hover:text-brand-600 border border-gray-200 text-xs font-medium transition-colors flex items-center justify-center gap-1">
@@ -367,7 +367,7 @@ export function viewPetProfile() {
         </div>
       </div>
 
-      <div class="bg-white rounded-2xl shadow-sm mb-4 relative">
+      <div class="print:hidden bg-white rounded-2xl shadow-sm mb-4 relative">
         <div class="overflow-x-auto" style="scrollbar-width:none;-webkit-overflow-scrolling:touch">
           <div class="flex border-b border-gray-100" style="min-width:max-content">
             ${tabs.map(t => `
@@ -1018,9 +1018,21 @@ export function exportPetRecord(petId) {
 
       <div class="flex gap-3 pt-4 border-t border-gray-100 mt-4">
         <button onclick="closeModal()" class="btn-secondary flex-1">Cerrar</button>
-        <button onclick="window.print()" class="btn-primary flex-1 flex items-center justify-center gap-1.5">${icon('printer','w-4 h-4')} Imprimir / Guardar PDF</button>
+        <button onclick="printPetRecord('${esc(pet.name)}')" class="btn-primary flex-1 flex items-center justify-center gap-1.5">${icon('printer','w-4 h-4')} Imprimir / Guardar PDF</button>
       </div>
     </div>`);
+}
+
+// El título del documento es lo que Chrome usa como nombre de archivo por
+// defecto en "Guardar como PDF" y como encabezado impreso — sin esto,
+// tanto el PDF como el encabezado quedaban con el nombre genérico de la
+// pestaña ("MyPets 3.0 — Gestión Integral de Mascotas") en vez del nombre
+// de la mascota.
+export function printPetRecord(petName) {
+  const prevTitle = document.title;
+  document.title = `Expediente médico - ${petName}`;
+  window.print();
+  document.title = prevTitle;
 }
 
 export function openInviteTutor2Modal(petId) {
@@ -1142,7 +1154,7 @@ if (typeof window !== 'undefined') {
     nextStep, collectStepData, savePet, openDeletePetWithCode, sendDeleteCode,
     verifyDeleteCode, confirmDeletePet, deletePet, saveEditPet, previewPhoto,
     setActivity, toggleTag, toggleCondition, toggleAllergy, toggleTutor2,
-    updateBreedOptions, exportPetRecord, openInviteTutor2Modal, createPetInvite,
+    updateBreedOptions, exportPetRecord, printPetRecord, openInviteTutor2Modal, createPetInvite,
     acceptPetInvite, sendTutor2Invite, removeTutor2,
   });
 }
