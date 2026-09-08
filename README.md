@@ -94,22 +94,29 @@ Aplicación web progresiva (PWA) de página única para tutores de mascotas. Per
 |---|---|
 | `profiles` | Perfiles de usuario (nombre, plan, is_admin) |
 | `pets` | Mascotas (owner_id, especie, raza, microchip, vet) |
-| `pet_access` | Control de acceso por mascota (owner / editor) |
+| `pet_access` | Control de acceso por mascota (owner / editor / viewer) |
 | `vaccines` | Vacunas por mascota |
 | `dewormings` | Desparasitaciones por mascota |
 | `medications` | Medicamentos y tratamientos |
-| `clinical_history` | Historial clínico |
+| `history_records` | Historial clínico |
 | `events` | Eventos de la agenda |
 | `expenses` | Gastos y finanzas |
-| `botiquin` | Inventario del botiquín |
+| `botiquin_items` | Inventario del botiquín |
 | `weight_history` | Historial de peso |
-| `mood_log` | Registro de estado de ánimo |
-| `symptoms_log` | Log de síntomas |
+| `mood_logs` | Registro de estado de ánimo |
+| `symptoms_logs` | Log de síntomas |
 | `food_items` | Alimento de cada mascota (producto, tamaño de paquete, consumo diario) — estima cuándo se acaba, reemplaza el antiguo registro de comidas |
 | `activities` | Check-in diario de actividad (Poco/Normal/Mucho) |
-| `dose_log` | Log de dosis administradas |
+| `dose_logs` | Log de dosis administradas |
+| `invitations` | Invitaciones pendientes/aceptadas de segundo tutor |
+| `meals` ⚠️ | Registro de comidas detallado — reemplazada por `food_items`, ya no la usa la app. Sigue teniendo políticas RLS activas (candidata a limpieza). |
 
-Todas las tablas tienen **Row Level Security (RLS)** activo — cada usuario solo ve sus propios datos.
+Todas las tablas tienen **Row Level Security (RLS)** activo — cada usuario
+solo ve sus propios datos, o los de las mascotas a las que tiene acceso vía
+`pet_access`. El estado real de las políticas está versionado en
+[`supabase/schema/rls_policies.sql`](supabase/schema/rls_policies.sql)
+(foto tomada el 2026-09-08 — ver [`supabase/README.md`](supabase/README.md)
+para la query de introspección y cómo mantenerlo al día).
 
 ---
 
@@ -129,6 +136,10 @@ MyPets-3.0/
 ├── test/
 │   ├── setup.js                # Stub de window.supabase (setupFiles de Vitest)
 │   └── mockSupabase.js         # Mock del query builder de supabase-js para los tests
+├── supabase/
+│   ├── README.md               # Query de introspección y cómo mantener la foto al día
+│   └── schema/
+│       └── rls_policies.sql    # Foto versionada de las políticas RLS en producción
 └── js/
     ├── utils.js                    # Utilidades puras: fechas, formato, cálculo de estado
     ├── utils.test.js               # Tests de Vitest para js/utils.js
