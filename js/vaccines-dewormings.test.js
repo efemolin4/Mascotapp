@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { makeMockSb } from '../test/mockSupabase.js';
 import '../js/utils.js';   // deja esc/genId/addMonths reales en window
 import '../js/app.js';     // deja canEditPet/blockIfReadOnly reales en window
-import { saveVaccine, deleteVaccine, tabVaccines, tabDeworming } from './vaccines-dewormings.js';
+import { saveVaccine, deleteVaccine, tabVaccines, tabDeworming, saveEditDeworming } from './vaccines-dewormings.js';
 
 describe('deleteVaccine', () => {
   let pet;
@@ -108,5 +108,42 @@ describe('orden cronológico (regresión: antes ordenaba por creación, no por f
     ] };
     const html = tabDeworming(pet);
     expect(html.indexOf('Producto nuevo')).toBeLessThan(html.indexOf('Producto viejo'));
+  });
+});
+
+// Regresión: al editar, la unidad se derivaba solo al CREAR (unitMap según
+// el formato) — el formulario de edición nunca la recalculaba, así que
+// cambiar el formato (ej. Comprimido → Pipeta) dejaba la unidad vieja
+// ("Comprimido(s)") para siempre, tanto local como en Supabase.
+describe('saveEditDeworming', () => {
+  let pet, d;
+
+  beforeEach(() => {
+    window.showToast = vi.fn();
+    window.render = vi.fn();
+    window.closeModal = vi.fn();
+    d = { id: 'dew-1', product: 'Drontal', format: 'Comprimido', unit: 'Comprimido(s)', dose: '1' };
+    pet = { id: 'pet-1', myRole: 'owner', deworming: [d] };
+    window.state = { pets: [pet] };
+
+    document.body.innerHTML = `
+      <input id="edw-product" value="Frontline Combo" />
+      <input id="edw-type" value="Externa" />
+      <select id="edw-format"><option value="Pipeta" selected>Pipeta</option></select>
+      <input id="edw-dose" value="1.34" />
+      <input id="edw-date" value="2026-05-01" />
+      <input id="edw-cost" value="" />
+      <input id="edw-period" value="" />
+      <input id="edw-alert" value="same" />
+      <input id="edw-alert-days" value="" />
+    `;
+  });
+
+  it('recalcula la unidad a partir del nuevo formato, tanto local como en el payload a Supabase', async () => {
+    window.sb = makeMockSb({ dewormings: { data: null, error: null } });
+    await saveEditDeworming({ preventDefault: () => {} }, 'pet-1', 'dew-1');
+    expect(d.unit).toBe('ML'); // Pipeta -> ML, ya no "Comprimido(s)"
+    const updatePayload = window.sb.from.mock.results[0].value.update.mock.calls[0][0];
+    expect(updatePayload.unit).toBe('ML');
   });
 });

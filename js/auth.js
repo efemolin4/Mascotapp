@@ -199,7 +199,12 @@ export async function login() {
   saveState();
   // Upsert defensivo: crea el perfil si nunca se creó (ej. trigger ausente) y
   // de paso hace backfill del email para cuentas creadas antes de guardarlo.
-  await sb.from('profiles').upsert({ id: data.user.id, email, name: userName }, { onConflict: 'id' });
+  // No bloquea el login si falla (la sesión ya es válida), pero se loguea
+  // el error — si esto falla en silencio, cualquier insert posterior que
+  // dependa de la fila de profiles (pet_access, invitations) falla después
+  // de forma mucho más confusa de diagnosticar.
+  const { error: profileError } = await sb.from('profiles').upsert({ id: data.user.id, email, name: userName }, { onConflict: 'id' });
+  if (profileError) console.error('Error al crear/actualizar profile:', profileError);
   await loadDataFromSupabase();
   showToast('¡Bienvenido! 👋', 'success');
   navigate('dashboard', {}, { replace: true });
@@ -237,7 +242,10 @@ export async function register() {
   // profiles no guarda el email por defecto (vive en auth.users) — lo copiamos a
   // la propia fila (creándola vía upsert si no existía) para que el panel de
   // admin pueda mostrarlo sin acceso a auth.users.
-  if (data.user?.id) await sb.from('profiles').upsert({ id: data.user.id, email, name }, { onConflict: 'id' });
+  if (data.user?.id) {
+    const { error: profileError } = await sb.from('profiles').upsert({ id: data.user.id, email, name }, { onConflict: 'id' });
+    if (profileError) console.error('Error al crear profile:', profileError);
+  }
   await loadDataFromSupabase();
   showToast('¡Cuenta creada! Bienvenido 🎉', 'success');
   navigate('dashboard', {}, { replace: true });
@@ -271,7 +279,11 @@ export async function logout() {
 }
 
 // ---- DATOS DE PRUEBA ----
-export function loadDemoAndLogin() {
+// `silent`: true cuando initApp() la reinvoca para restaurar una sesión demo
+// tras un F5 (ver ahí el comentario) — solo repuebla el estado, sin el toast
+// ni el navigate('dashboard') que sí corresponden al click explícito del
+// botón "Ingresar con datos de prueba".
+export function loadDemoAndLogin(silent) {
   const id = () => genId();
   const dt = (y, m, d) => `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
 
@@ -563,6 +575,7 @@ export function loadDemoAndLogin() {
 
   Object.assign(state, demoState);
   saveState();
+  if (silent) return;
   showToast('Datos de prueba cargados (3 años)', 'success');
   navigate('dashboard', {}, { replace: true });
 }

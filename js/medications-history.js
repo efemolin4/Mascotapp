@@ -374,8 +374,15 @@ export async function deleteMedication(petId, mId) {
 export async function markDoseTaken(petId) {
   const pet = state.pets.find(p => p.id === petId);
   if (!pet) return;
+  if (blockIfReadOnly(pet)) return;
   const today = todayStr();
-  const activeMed = (pet.medications||[]).find(m => m.active);
+  // El botón "Marcar dosis de hoy" es uno solo por mascota, no por
+  // tratamiento — con un único medicamento activo no hay ambigüedad, pero
+  // con dos o más no hay forma de saber a cuál corresponde. Antes se
+  // asociaba siempre al primero del arreglo (dato incorrecto); mejor
+  // dejarlo sin asociar a ninguno en particular que atribuirlo mal.
+  const activeMeds = (pet.medications||[]).filter(m => m.active);
+  const activeMed = activeMeds.length === 1 ? activeMeds[0] : null;
   pet.doseLog = pet.doseLog || [];
   if (pet.doseLog.some(dl => dl.date === today && dl.given)) return;
   if (isDemoUser()) {
@@ -648,7 +655,7 @@ export async function saveEditMedication(e, petId, medId) {
   if (!m) return;
   if (blockIfReadOnly(pet)) return;
   const g = id => document.getElementById(id)?.value;
-  const days = parseInt(g('em-days') || 0);
+  const days = g('em-days') ? parseInt(g('em-days')) : null;
   const startDate = g('em-start'), startTime = g('em-start-time');
   const name = g('em-name'), doseVal = g('em-dose-val'), doseUnit = g('em-unit');
   const freqN = g('em-freq-n'), freqUnit = g('em-freq-unit');
@@ -657,7 +664,12 @@ export async function saveEditMedication(e, petId, medId) {
   const stockTotal = g('em-stock-total') || null, stockUnit = g('em-stock-unit');
   const reminder = g('em-reminder');
   const active = document.getElementById('em-active')?.checked;
-  let endDate = m.endDate || null;
+  // Igual que saveMedication(): si se borra "N° días de tratamiento" el
+  // tratamiento pasa a ser abierto (sin fecha de fin), no se deja la fecha
+  // de fin vieja — antes `days` quedaba en 0 (no null) para un campo
+  // vacío, así que este bloque nunca se recalculaba y la fecha de fin
+  // obsoleta se guardaba tal cual, tanto localmente como en Supabase.
+  let endDate = null;
   if (days && startDate) {
     const d = new Date(startDate + 'T12:00:00'); d.setDate(d.getDate() + days);
     endDate = d.toISOString().slice(0,10);
@@ -744,12 +756,26 @@ export function previewHistoryFilesEdit(input) {
   });
 }
 
-export function removeHistoryFile(petId, histId, fileIndex) {
+export async function removeHistoryFile(petId, histId, fileIndex) {
   const pet = state.pets.find(p => p.id === petId);
   const h = pet?.clinicalHistory?.find(x => x.id === histId);
   if (!h) return;
-  h.files = (h.files||[]).filter((_,i) => i !== fileIndex);
-  saveState(); closeModal();
+  if (blockIfReadOnly(pet)) return;
+  const previousFiles = h.files || [];
+  const newFiles = previousFiles.filter((_,i) => i !== fileIndex);
+  // Se persiste de inmediato (no espera a "Guardar cambios" del resto del
+  // formulario): antes solo mutaba el estado en memoria, así que si el
+  // usuario cerraba el modal sin guardar el resto de los campos, el
+  // archivo "eliminado" reaparecía en la próxima carga porque Supabase
+  // nunca se actualizaba.
+  if (!isDemoUser()) {
+    const { error } = await sb.from('history_records').update({
+      files: newFiles.map(f => JSON.stringify(f))
+    }).eq('id', histId);
+    if (error) { showToast('Error al eliminar el archivo', 'error'); console.error(error); return; }
+  }
+  h.files = newFiles;
+  closeModal();
   openEditHistoryModal(petId, histId);
 }
 

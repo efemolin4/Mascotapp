@@ -11,6 +11,7 @@ export function tabSeguimiento(pet) {
   const history = pet.weightHistory || [];
   const moodLog = pet.moodLog || [];
   const symptomsLog = pet.symptomsLog || [];
+  const canEdit = canEditPet(pet);
 
   // Mood for last 7 days
   const last7Days = [];
@@ -40,7 +41,7 @@ export function tabSeguimiento(pet) {
     <div class="bg-white rounded-2xl shadow-sm p-4 md:p-5">
       <div class="flex items-center justify-between mb-3">
         <h3 class="font-semibold text-gray-800 flex items-center gap-1.5">${icon('chartBar','w-4 h-4')} Peso histórico</h3>
-        <button onclick="openWeightModal('${pet.id}')" class="btn-primary text-sm">+ Registrar peso</button>
+        ${canEdit ? `<button onclick="openWeightModal('${pet.id}')" class="btn-primary text-sm">+ Registrar peso</button>` : ''}
       </div>
       ${hasWeight ? `
         <canvas id="weight-chart-${pet.id}" height="180"></canvas>
@@ -65,8 +66,8 @@ export function tabSeguimiento(pet) {
       </div>
       <div class="flex gap-2 flex-wrap mb-3">
         ${[1,2,3,4,5,6,7,8,9].map(n => `
-          <button onclick="setBCS('${pet.id}',${n})"
-            class="w-9 h-9 rounded-xl border-2 text-sm font-bold transition-all ${bcs===n ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-gray-200 text-gray-500 hover:border-brand-300'}">
+          <button ${canEdit ? `onclick="setBCS('${pet.id}',${n})"` : 'disabled'}
+            class="w-9 h-9 rounded-xl border-2 text-sm font-bold transition-all ${bcs===n ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-gray-200 text-gray-500'} ${canEdit ? 'hover:border-brand-300' : 'opacity-60 cursor-default'}">
             ${n}
           </button>`).join('')}
       </div>
@@ -83,7 +84,7 @@ export function tabSeguimiento(pet) {
     <div class="bg-white rounded-2xl shadow-sm p-4 md:p-5">
       <div class="flex items-center justify-between mb-3">
         <h3 class="font-semibold text-gray-800">😊 Estado de ánimo</h3>
-        <button onclick="openMoodModal('${pet.id}')" class="btn-primary text-sm">${todayMood ? 'Editar hoy' : '+ Registrar hoy'}</button>
+        ${canEdit ? `<button onclick="openMoodModal('${pet.id}')" class="btn-primary text-sm">${todayMood ? 'Editar hoy' : '+ Registrar hoy'}</button>` : ''}
       </div>
       ${todayMood ? `
         <div class="flex items-center gap-2 mb-3 p-3 bg-gray-50 rounded-xl">
@@ -113,7 +114,7 @@ export function tabSeguimiento(pet) {
     <div class="bg-white rounded-2xl shadow-sm p-4 md:p-5">
       <div class="flex items-center justify-between mb-3">
         <h3 class="font-semibold text-gray-800 flex items-center gap-1.5">${icon('heart','w-4 h-4')} Diario de síntomas</h3>
-        <button onclick="openSymptomsModal('${pet.id}')" class="btn-primary text-sm">+ Registrar</button>
+        ${canEdit ? `<button onclick="openSymptomsModal('${pet.id}')" class="btn-primary text-sm">+ Registrar</button>` : ''}
       </div>
       ${symptomsLog.length === 0
         ? `<div class="text-center py-4"><div class="mb-2 flex justify-center text-gray-300">${icon('heart','w-8 h-8')}</div><p class="text-sm text-gray-400">Sin registros de síntomas</p></div>`
@@ -251,11 +252,20 @@ export function renderWeightChart(pet) {
   }, 100);
 }
 
-export function setBCS(petId, score) {
+export async function setBCS(petId, score) {
   const pet = state.pets.find(p => p.id === petId);
   if (!pet) return;
+  if (blockIfReadOnly(pet)) return;
+  // `pets.bcs` — antes esto solo mutaba el estado en memoria y llamaba a
+  // saveState() (que solo persiste user/isLoggedIn en localStorage, no
+  // las mascotas), así que el puntaje nunca llegaba a Supabase: se veía
+  // guardado en la sesión actual pero desaparecía en la próxima carga.
+  if (!isDemoUser()) {
+    const { error } = await sb.from('pets').update({ bcs: score }).eq('id', petId);
+    if (error) { showToast('Error al guardar', 'error'); console.error(error); return; }
+  }
   pet.bcs = score;
-  saveState(); render();
+  render();
 }
 
 export function openWeightModal(petId) {
@@ -298,16 +308,24 @@ export async function saveWeight(e, petId) {
   e.preventDefault();
   const pet = state.pets.find(p => p.id === petId);
   if (!pet) return;
+  if (blockIfReadOnly(pet)) return;
   const g = id => document.getElementById(id)?.value;
   const kg = parseFloat(g('wt-kg') || 0);
   const gr = parseInt(g('wt-gr') || 0);
   const date = g('wt-date');
-  const { data, error } = await sb.from('weight_history').insert({
-    pet_id: petId, date, kg, gr
-  }).select().single();
-  if (error) { showToast('Error al guardar peso', 'error'); return; }
   pet.weightHistory = pet.weightHistory || [];
-  pet.weightHistory.push({ id: data.id, date: data.date, kg: data.kg, gr: data.gr, notes: data.notes });
+  if (isDemoUser()) {
+    pet.weightHistory.push({ id: genId(), date, kg, gr, notes: '' });
+  } else {
+    // A diferencia de saveMood/saveSymptoms, esto nunca chequeaba
+    // isDemoUser() — en modo demo intentaba escribir en Supabase real con
+    // un pet_id que no existe ahí (ej. "pet-greta"), fallando siempre.
+    const { data, error } = await sb.from('weight_history').insert({
+      pet_id: petId, date, kg, gr
+    }).select().single();
+    if (error) { showToast('Error al guardar peso', 'error'); return; }
+    pet.weightHistory.push({ id: data.id, date: data.date, kg: data.kg, gr: data.gr, notes: data.notes });
+  }
   pet.weightHistory.sort((a, b) => a.date > b.date ? 1 : -1);
   closeModal(); render();
   showToast('Peso registrado ✓', 'success');
@@ -357,6 +375,7 @@ export function selectMood(val) {
 export async function saveMood(petId) {
   const pet = state.pets.find(p => p.id === petId);
   if (!pet) return;
+  if (blockIfReadOnly(pet)) return;
   const mood = document.getElementById('mood-val')?.value;
   if (!mood) { showToast('Selecciona un estado de ánimo', 'error'); return; }
   const notes = document.getElementById('mood-notes')?.value || '';
@@ -423,6 +442,7 @@ export function toggleSymptomTag(btn, tag) {
 export async function saveSymptoms(petId) {
   const pet = state.pets.find(p => p.id === petId);
   if (!pet) return;
+  if (blockIfReadOnly(pet)) return;
   const selected = [...document.querySelectorAll('#sym-tags button.border-brand-500')].map(b => b.dataset.tag);
   if (!selected.length) { showToast('Selecciona al menos un síntoma', 'error'); return; }
   const date = document.getElementById('sym-date')?.value;
@@ -466,7 +486,7 @@ export function openFoodItemModal(petId, itemId) {
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="form-label">Consumo diario *</label><input id="fi-daily" type="number" required min="0" step="0.01" value="${item?.dailyAmount||''}" placeholder="Ej: 0.3" class="input-field" /></div>
-          <div><label class="form-label">Precio (CLP)</label><input id="fi-price" type="number" min="0" value="${item?.price||''}" placeholder="0" class="input-field" /></div>
+          <div><label class="form-label">Precio (CLP)</label><input id="fi-price" type="text" inputmode="numeric" value="${item?.price||''}" placeholder="0" class="input-field" /></div>
         </div>
         <p class="text-xs text-gray-400 -mt-1">Usa la misma unidad en tamaño y consumo diario (ej: paquete de 15 kg, 0.3 kg diarios).</p>
         <div><label class="form-label">Fecha de compra</label><input id="fi-purchase" type="date" value="${item?.purchaseDate||todayStr()}" class="input-field" /></div>
@@ -487,7 +507,7 @@ export async function saveFoodItem(e, petId, itemId) {
   const g = id => document.getElementById(id)?.value;
   const product = g('fi-product'), type = g('fi-type');
   const packageSize = parseFloat(g('fi-size') || 0), packageUnit = g('fi-unit');
-  const dailyAmount = parseFloat(g('fi-daily') || 0), price = g('fi-price') || null;
+  const dailyAmount = parseFloat(g('fi-daily') || 0), price = parseCLP(g('fi-price'));
   const purchaseDate = g('fi-purchase') || todayStr(), notes = g('fi-notes');
   pet.foodItems = pet.foodItems || [];
   if (isDemoUser()) {

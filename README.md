@@ -461,6 +461,30 @@ No hace falta tocar RLS — `botiquin_items` ya tiene su política
 `Users manage own botiquin` (`user_id = auth.uid()`), que cubre columnas
 nuevas automáticamente.
 
+### Corrección de 13 bugs de una auditoría profunda (2026-09-08)
+
+Una segunda pasada de auditoría (5 revisiones en paralelo, cruzando cada
+campo entre carga desde Supabase / guardado / render / datos de demo)
+encontró y corrigió, entre otros: el dueño de una mascota compartida no
+podía borrarla de verdad si había una invitación de segundo tutor de por
+medio (quedaba huérfana en la base); el modo demo perdía todos los datos
+al recargar la página; editar una desparasitación no actualizaba su
+unidad al cambiar el formato; el gráfico "Trimestral" y la "Predicción de
+gastos" de Finanzas tenían bugs de cálculo; varias acciones de Seguimiento
+(peso, ánimo, síntomas, BCS) no respetaban el acceso de solo lectura de un
+tutor invitado; y el puntaje de condición corporal (BCS) nunca se
+guardaba en Supabase para usuarios reales — solo en memoria.
+
+Este último requiere una columna nueva en `pets` (nunca existió):
+
+```sql
+ALTER TABLE public.pets
+  ADD COLUMN IF NOT EXISTS bcs integer;
+```
+
+El resto de las correcciones fueron solo de código — no requieren ningún
+cambio en Supabase. Detalle completo en el historial de git de esa fecha.
+
 ---
 
 ## Deploy

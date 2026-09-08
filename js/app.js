@@ -635,7 +635,8 @@ export async function initApp() {
       // tutor que crea su cuenta vía el magic link de una invitación — para que
       // siempre exista una fila en profiles antes de cualquier insert que dependa
       // de ella (pet_access.user_id, etc.).
-      await sb.from('profiles').upsert({ id: session.user.id, email: session.user.email, name: userName }, { onConflict: 'id' });
+      const { error: profileError } = await sb.from('profiles').upsert({ id: session.user.id, email: session.user.email, name: userName }, { onConflict: 'id' });
+      if (profileError) console.error('Error al crear/actualizar profile:', profileError);
       if (!state.currentView || state.currentView === 'login') {
         const route = resolveInitialViewFromUrl(true);
         state.currentView = route ? route.view : 'dashboard';
@@ -650,6 +651,18 @@ export async function initApp() {
     // vacío y mostraba el onboarding de "agrega tu primera mascota" aunque ya
     // tuviera una — llevando a mascotas duplicadas.
     await loadDataFromSupabase();
+  } else if (state.isLoggedIn && isDemoUser()) {
+    // El modo demo no tiene sesión real de Supabase, así que el `if
+    // (session)` de arriba nunca corre para él — y state.pets/events/
+    // expenses/botiquin tampoco se persisten en localStorage (ver
+    // saveState()). Antes de este else-if, recargar la página (o volver a
+    // abrir la pestaña) mientras se estaba "logueado" en modo demo dejaba
+    // isLoggedIn en true pero todos los arreglos vacíos — el dashboard
+    // mostraba el onboarding de "sin mascotas" como si los datos de
+    // prueba hubieran desaparecido. Se vuelve a generar en silencio (sin
+    // el toast/navigate del click explícito) para no interrumpir un
+    // deep-link ya resuelto por loadState().
+    loadDemoAndLogin(true);
   }
 
   // Invitación de segundo tutor pendiente (llegó por ?invite=TOKEN, ver loadState())

@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { makeMockSb } from '../test/mockSupabase.js';
 import '../js/utils.js';
-import '../js/app.js';   // deja state/icon/esc/appShell/paginate/pagerHTML reales en window
-import { tabHistory, tabMedications } from './medications-history.js';
+import '../js/app.js';   // deja state/icon/esc/appShell/paginate/pagerHTML/blockIfReadOnly reales en window
+import { tabHistory, tabMedications, markDoseTaken, saveEditMedication, removeHistoryFile } from './medications-history.js';
 
 // Regresión: tabHistory y tabMedications ordenaban por .reverse() (orden de
 // creación invertido), no por fecha real — un evento clínico cargado más
@@ -34,5 +35,132 @@ describe('orden cronológico', () => {
     ], doseLog: [] };
     const html = tabMedications(pet);
     expect(html.indexOf('Tratamiento nuevo')).toBeLessThan(html.indexOf('Tratamiento viejo'));
+  });
+});
+
+// Regresión: el botón "Marcar dosis de hoy" es único por mascota (no por
+// tratamiento) y antes asociaba el dose_log siempre al PRIMER medicamento
+// activo del arreglo, sin importar cuál — con 2+ medicamentos activos a la
+// vez, la dosis quedaba atribuida al que no correspondía.
+describe('markDoseTaken', () => {
+  beforeEach(() => {
+    window.showToast = vi.fn();
+    window.render = vi.fn();
+    window.isDemoUser = vi.fn(() => false);
+  });
+
+  it('con un solo medicamento activo, la dosis se asocia a él sin ambigüedad', async () => {
+    const pet = { id: 'pet-1', myRole: 'owner', doseLog: [],
+      medications: [{ id: 'med-1', active: true }, { id: 'med-2', active: false }] };
+    window.state = { pets: [pet] };
+    window.sb = makeMockSb({ dose_logs: { data: { id: 'dl-1', med_id: 'med-1', date: '2026-06-15', confirmed: true }, error: null } });
+    await markDoseTaken('pet-1');
+    const insertPayload = window.sb.from.mock.results[0].value.insert.mock.calls[0][0];
+    expect(insertPayload.med_id).toBe('med-1');
+  });
+
+  it('con dos o más medicamentos activos, NO le adivina el medicamento (queda sin asociar)', async () => {
+    const pet = { id: 'pet-1', myRole: 'owner', doseLog: [],
+      medications: [{ id: 'med-1', active: true }, { id: 'med-2', active: true }] };
+    window.state = { pets: [pet] };
+    window.sb = makeMockSb({ dose_logs: { data: { id: 'dl-1', med_id: null, date: '2026-06-15', confirmed: true }, error: null } });
+    await markDoseTaken('pet-1');
+    const insertPayload = window.sb.from.mock.results[0].value.insert.mock.calls[0][0];
+    expect(insertPayload.med_id).toBeNull(); // antes: siempre 'med-1' (el primero), sin importar cuál correspondía
+  });
+
+  it('no llama a Supabase si el tutor tiene acceso de solo lectura', async () => {
+    const pet = { id: 'pet-1', myRole: 'viewer', doseLog: [], medications: [{ id: 'med-1', active: true }] };
+    window.state = { pets: [pet] };
+    window.sb = makeMockSb();
+    await markDoseTaken('pet-1');
+    expect(window.sb.from).not.toHaveBeenCalled();
+  });
+});
+
+// Regresión: al editar y borrar "Días de tratamiento" (dejarlo abierto/sin
+// fecha de fin), la fecha de fin vieja se quedaba tal cual — tanto en el
+// estado local como en el payload enviado a Supabase — porque el campo
+// vacío se leía como 0 (no null) y el bloque que recalcula endDate nunca
+// se ejecutaba para 0.
+describe('saveEditMedication', () => {
+  let pet, m;
+
+  beforeEach(() => {
+    window.showToast = vi.fn();
+    window.render = vi.fn();
+    window.closeModal = vi.fn();
+    window.isDemoUser = vi.fn(() => false);
+    m = { id: 'med-1', name: 'Meloxicam', treatmentDays: 10, startDate: '2026-01-01', endDate: '2026-01-11' };
+    pet = { id: 'pet-1', myRole: 'owner', medications: [m] };
+    window.state = { pets: [pet] };
+
+    document.body.innerHTML = `
+      <input id="em-name" value="Meloxicam" />
+      <input id="em-dose-val" value="1" />
+      <select id="em-unit"><option value="mg" selected>mg</option></select>
+      <input id="em-freq-n" value="24" />
+      <select id="em-freq-unit"><option value="horas" selected>horas</option></select>
+      <input id="em-start" value="2026-01-01" />
+      <select id="em-start-time"><option value="08:00" selected>08:00</option></select>
+      <input id="em-days" value="" />
+      <input id="em-expiry" value="" />
+      <input id="em-cost" value="" />
+      <input type="hidden" id="em-reminder" value="exact" />
+      <input type="checkbox" id="em-active" checked />
+      <input id="em-stock-total" value="" />
+      <select id="em-stock-unit"><option value="Comprimidos" selected>Comprimidos</option></select>
+    `;
+  });
+
+  it('borrar "Días de tratamiento" limpia la fecha de fin en vez de dejar la vieja', async () => {
+    window.sb = makeMockSb({ medications: { data: null, error: null } });
+    await saveEditMedication({ preventDefault: () => {} }, 'pet-1', 'med-1');
+    expect(m.endDate).toBeNull();
+    expect(m.treatmentDays).toBeNull();
+    const updatePayload = window.sb.from.mock.results[0].value.update.mock.calls[0][0];
+    expect(updatePayload.end_date).toBeNull();
+    expect(updatePayload.treatment_days).toBeNull();
+  });
+});
+
+// Regresión: borrar un archivo adjunto del historial solo mutaba el estado
+// en memoria (vía saveState(), que ni siquiera persiste mascotas) — si el
+// usuario cerraba el modal sin guardar el resto del formulario, Supabase
+// nunca se enteraba y el archivo "eliminado" reaparecía en la próxima carga.
+describe('removeHistoryFile', () => {
+  beforeEach(() => {
+    // removeHistoryFile reabre el modal de edición al terminar (para
+    // refrescar la lista de archivos), así que openModal necesita el nodo
+    // real donde monta el HTML.
+    document.body.innerHTML = '<div id="modal-root"></div>';
+    window.isDemoUser = vi.fn(() => false);
+  });
+
+  it('persiste el archivo restante en Supabase de inmediato, no solo en memoria', async () => {
+    window.showToast = vi.fn();
+    window.closeModal = vi.fn();
+    window.state = {
+      pets: [{ id: 'pet-1', myRole: 'owner', clinicalHistory: [
+        { id: 'h1', title: 'Control', files: [{ name: 'a.pdf', data: 'x' }, { name: 'b.pdf', data: 'y' }] },
+      ] }],
+    };
+    window.sb = makeMockSb({ history_records: { data: null, error: null } });
+    await removeHistoryFile('pet-1', 'h1', 0);
+    const updatePayload = window.sb.from.mock.results[0].value.update.mock.calls[0][0];
+    expect(JSON.parse(updatePayload.files[0]).name).toBe('b.pdf');
+    expect(updatePayload.files).toHaveLength(1);
+  });
+
+  it('no llama a Supabase si el tutor tiene acceso de solo lectura', async () => {
+    window.state = {
+      pets: [{ id: 'pet-1', myRole: 'viewer', clinicalHistory: [
+        { id: 'h1', title: 'Control', files: [{ name: 'a.pdf', data: 'x' }] },
+      ] }],
+    };
+    window.showToast = vi.fn();
+    window.sb = makeMockSb();
+    await removeHistoryFile('pet-1', 'h1', 0);
+    expect(window.sb.from).not.toHaveBeenCalled();
   });
 });

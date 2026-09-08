@@ -512,15 +512,22 @@ export async function saveEditDeworming(e, petId, dewormId) {
   const period = g('edw-period');
   const alertType = g('edw-alert'), alertDays = g('edw-alert-days') || null;
   const nextDate = period ? addMonths(date, parseFloat(period)) : '';
+  // Igual que saveDeworming() (creación): la unidad se deriva del formato,
+  // no es un campo que el usuario tipee — antes esta función no la
+  // recalculaba al editar, así que cambiar el formato (ej. de Comprimido a
+  // Pipeta) dejaba la unidad vieja ("Comprimido(s)") para siempre, tanto
+  // local como en Supabase.
+  const unitMap = { Comprimido:'Comprimido(s)', Pipeta:'ML', Collar:'Unidad(es)', Spray:'ML', Jarabe:'ML', Inyección:'ML' };
+  const unit = unitMap[format] || '';
   if (!isDemoUser()) {
     const { error } = await sb.from('dewormings').update({
-      product, type, format, dose, date, cost, periodicity: period, next_date: nextDate,
+      product, type, format, dose, unit, date, cost, periodicity: period, next_date: nextDate,
       alert_type: alertType, alert_days: alertDays
     }).eq('id', dewormId);
     if (error) { showToast('Error al guardar cambios', 'error'); console.error(error); return; }
   }
   d.product = product; d.type = type;
-  d.format = format; d.dose = dose;
+  d.format = format; d.dose = dose; d.unit = unit;
   d.date = date; d.cost = cost; d.periodicity = period; d.nextDate = nextDate;
   d.alertType = alertType; d.alertDays = alertDays;
   closeModal(); render();

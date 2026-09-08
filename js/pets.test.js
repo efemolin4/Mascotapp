@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { makeMockSb } from '../test/mockSupabase.js';
-import { savePet } from './pets.js';
+import '../js/app.js'; // deja canEditPet/blockIfReadOnly reales en window
+import { savePet, deletePet } from './pets.js';
 
 // savePet() lee/escribe sobre `state`, `sb`, etc. como globales (ver
 // js/utils.js para el porqué de esa convención) — acá se los proveemos a
@@ -73,5 +74,55 @@ describe('savePet', () => {
     expect(window.state.pets).toHaveLength(0);
     // 'pets' se llama dos veces: el insert original y el delete de rollback.
     expect(window.sb.from.mock.calls.map(c => c[0])).toEqual(['pets', 'pet_access', 'pets']);
+  });
+});
+
+// Regresión: la rama se decidía por "¿existe un tutor2?" en vez de "¿soy el
+// dueño?" — el dueño de una mascota con un tutor2 (aceptado O pendiente)
+// entraba por error a la rama de "salir de mascota compartida", que nunca
+// borra la fila `pets`, dejándola huérfana en Supabase para siempre.
+describe('deletePet', () => {
+  beforeEach(() => {
+    window.showToast = vi.fn();
+    window.navigate = vi.fn();
+    window.closeModal = vi.fn();
+    window.isDemoUser = vi.fn(() => false);
+    window.state = { user: { id: 'owner-1' }, pets: [], deleteCode: null, deletePetId: null };
+  });
+
+  it('el dueño con un tutor2 pendiente (invitación no aceptada) SÍ borra la fila de la mascota', async () => {
+    const pet = { id: 'pet-1', name: 'Greta', myRole: 'owner', tutor2: { name: 'María', pending: true } };
+    window.state.pets = [pet];
+    window.sb = makeMockSb({ pets: { data: null, error: null } });
+    await deletePet('pet-1');
+    expect(window.sb.from.mock.calls.map(c => c[0])).toContain('pets');
+    // Nunca debe entrar a la rama de "salir" (que solo toca invitations/pet_access).
+    expect(window.sb.from.mock.calls.map(c => c[0])).not.toContain('invitations');
+    expect(window.state.pets).toHaveLength(0);
+  });
+
+  it('el dueño con un tutor2 ya aceptado también borra la fila de la mascota', async () => {
+    const pet = { id: 'pet-1', name: 'Greta', myRole: 'owner', tutor2: { name: 'María', pending: false } };
+    window.state.pets = [pet];
+    window.sb = makeMockSb({ pets: { data: null, error: null } });
+    await deletePet('pet-1');
+    expect(window.sb.from.mock.calls.map(c => c[0])).toEqual(['pets']);
+  });
+
+  it('un tutor invitado (no dueño) solo quita su propio acceso, no borra la mascota', async () => {
+    const pet = { id: 'pet-1', name: 'Greta', myRole: 'editor', tutor2: null };
+    window.state.pets = [pet];
+    window.sb = makeMockSb({ invitations: { data: null, error: null }, pet_access: { data: null, error: null } });
+    await deletePet('pet-1');
+    expect(window.sb.from.mock.calls.map(c => c[0])).toEqual(['invitations', 'pet_access']);
+    expect(window.showToast).toHaveBeenCalledWith('Greta eliminada de tu perfil', 'success');
+  });
+
+  it('un tutor de solo lectura (viewer) también puede salir de la mascota compartida', async () => {
+    const pet = { id: 'pet-1', name: 'Greta', myRole: 'viewer', tutor2: null };
+    window.state.pets = [pet];
+    window.sb = makeMockSb({ invitations: { data: null, error: null }, pet_access: { data: null, error: null } });
+    await deletePet('pet-1');
+    expect(window.state.pets).toHaveLength(0);
   });
 });

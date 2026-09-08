@@ -39,7 +39,18 @@ export function viewFinance() {
       return Array.from({length:4}, (_,i) => {
         const d = new Date(today.getFullYear(), today.getMonth() - (3-i)*3, 1);
         const q = Math.floor(d.getMonth()/3)+1;
-        const months = [0,1,2].map(m => `${d.getFullYear()}-${String(d.getMonth()+m+1).padStart(2,'0')}`);
+        // d.getMonth() es el mes de HOY desplazado, no necesariamente el
+        // primer mes del trimestre (0/3/6/9) — sin este ajuste, los meses
+        // del trimestre se contaban desde d.getMonth()+1 en vez de desde
+        // el inicio real del trimestre: para 8 de los 12 meses del año
+        // generaba claves fuera de rango (ej. "13"/"14") que nunca
+        // calzaban con ninguna fecha real, mostrando $0 en esa barra; y
+        // el trimestre "actual" quedaba mal etiquetado incluso cuando no
+        // desbordaba (ej. hoy en septiembre mostraba Sep/Oct/Nov en vez
+        // del Q3 real Jul/Ago/Sep). Ver el mismo patrón ya usado abajo en
+        // "semestral" con baseMonth.
+        const baseMonth = (q-1)*3;
+        const months = [0,1,2].map(m => `${d.getFullYear()}-${String(baseMonth+m+1).padStart(2,'0')}`);
         return { label: `Q${q} ${d.getFullYear()}`, match: e => months.some(m => e.date?.startsWith(m)) };
       });
     }
@@ -248,9 +259,13 @@ export function viewFinance() {
     })()}`}
 
     ${(() => {
-      // Predicción de gastos próximo mes
+      // Predicción de gastos próximo mes. Usa `expenses` (ya filtrado por
+      // mascota), no `allExpenses` — antes usaba allExpenses acá y la
+      // proyección/tendencia seguía mostrando el gasto de TODAS las
+      // mascotas aunque el usuario hubiera filtrado por una sola en el
+      // selector "Mascota", a diferencia de cada otro widget de la página.
       const last90Days = daysFromNowStr(-90);
-      const last90Expenses = allExpenses.filter(e => e.date >= last90Days);
+      const last90Expenses = expenses.filter(e => e.date >= last90Days);
       const last90Amounts = last90Expenses.map(e => Number(e.amount || 0)).filter(a => a > 0);
       if (!last90Amounts.length) return '';
       // Un gasto puntual grande (cirugía, emergencia) no debería inflar la proyección
@@ -269,8 +284,8 @@ export function viewFinance() {
       const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
       const lastMonthStr = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth()+1).padStart(2,'0')}`;
       const prevMonthStr = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth()+1).padStart(2,'0')}`;
-      const lastMonthTotal = allExpenses.filter(e=>e.date?.startsWith(lastMonthStr)).reduce((s,e)=>s+Number(e.amount||0),0);
-      const prevMonthTotal = allExpenses.filter(e=>e.date?.startsWith(prevMonthStr)).reduce((s,e)=>s+Number(e.amount||0),0);
+      const lastMonthTotal = expenses.filter(e=>e.date?.startsWith(lastMonthStr)).reduce((s,e)=>s+Number(e.amount||0),0);
+      const prevMonthTotal = expenses.filter(e=>e.date?.startsWith(prevMonthStr)).reduce((s,e)=>s+Number(e.amount||0),0);
       const trend = lastMonthTotal > prevMonthTotal ? '↑' : lastMonthTotal < prevMonthTotal ? '↓' : '→';
       const trendColor = trend==='↑' ? 'text-red-500' : trend==='↓' ? 'text-green-500' : 'text-gray-400';
 

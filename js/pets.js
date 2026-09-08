@@ -815,12 +815,19 @@ export function confirmDeletePet(petId) { openDeletePetWithCode(petId); }
 
 export async function deletePet(petId) {
   const pet = state.pets.find(p => p.id === petId);
-  const hasTwoTutors = pet?.tutor2?.name;
-  if (hasTwoTutors) {
+  // Antes esta rama se decidía por "¿existe un tutor2?" (pet?.tutor2?.name),
+  // no por si el usuario actual es el dueño — así que el dueño de una
+  // mascota compartida (invitación aceptada O TODAVÍA PENDIENTE) entraba
+  // por error a la rama de "salir": borraba la invitación y su propio
+  // pet_access, pero nunca la fila de `pets`, dejándola huérfana en la
+  // base para siempre mientras la app mostraba "eliminada permanentemente".
+  const isOwner = !pet?.myRole || pet.myRole === 'owner';
+  if (!isOwner) {
     // Salir de una mascota compartida es una acción sobre el propio acceso, no
     // una edición de la mascota — se permite incluso con rol de solo lectura.
     if (!isDemoUser()) {
-      await sb.from('invitations').delete().eq('pet_id', petId);
+      const { error: invError } = await sb.from('invitations').delete().eq('pet_id', petId);
+      if (invError) { showToast('Error al eliminar', 'error'); console.error(invError); return; }
       // Quita solo el acceso del usuario actual — el otro tutor conserva el suyo.
       const { error } = await sb.from('pet_access').delete().eq('pet_id', petId).eq('user_id', state.user.id);
       if (error) { showToast('Error al eliminar', 'error'); console.error(error); return; }

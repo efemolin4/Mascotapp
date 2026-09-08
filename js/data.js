@@ -30,7 +30,7 @@ async function loadDataFromSupabase() {
       sb.from('dewormings').select('*').in('pet_id', petIds),
       sb.from('medications').select('*').in('pet_id', petIds),
       sb.from('history_records').select('*').in('pet_id', petIds),
-      sb.from('weight_history').select('*').in('pet_id', petIds),
+      sb.from('weight_history').select('*').in('pet_id', petIds).order('date'),
       sb.from('mood_logs').select('*').in('pet_id', petIds),
       sb.from('symptoms_logs').select('*').in('pet_id', petIds),
       sb.from('food_items').select('*').in('pet_id', petIds),
@@ -41,6 +41,17 @@ async function loadDataFromSupabase() {
       sb.from('botiquin_items').select('*').eq('user_id', state.user.id),
       sb.from('invitations').select('*').in('pet_id', petIds).order('created_at', { ascending: false }),
     ]);
+
+    // Ninguna de estas 14 queries revisaba `.error` — un fallo puntual
+    // (ej. un hiccup de RLS en una sola tabla) hacía que esa tabla
+    // simplemente quedara en `[]` sin ningún aviso, como si la mascota no
+    // tuviera esos registros, en vez de mostrar que algo falló al cargar.
+    const allResults = [vaccRes, dewRes, medRes, histRes, wRes, moodRes, symRes, foodRes, actRes, doseRes, evRes, expRes, botRes, invRes];
+    const failedQueries = allResults.filter(r => r.error);
+    if (failedQueries.length) {
+      console.error('Error cargando datos de Supabase:', failedQueries.map(r => r.error));
+      showToast('Algunos datos no se pudieron cargar, intenta recargar la página', 'error');
+    }
 
     const vacc = vaccRes.data || [], dew = dewRes.data || [], med = medRes.data || [];
     const hist = histRes.data || [], wh = wRes.data || [], mood = moodRes.data || [];
@@ -62,6 +73,7 @@ async function loadDataFromSupabase() {
         weightKg: pet.weight_kg ?? '', weightGr: pet.weight_gr ?? '',
         sizeRange: pet.size_range || '', activityLevel: pet.activity_level || 2,
         allergies: pet.allergies || [], chronicConditions: pet.chronic_conditions || [],
+        bcs: pet.bcs ?? null,
         tutor2: (() => {
           const inv = invites.find(i => i.pet_id === pid);
           return inv ? { name: inv.invited_name, email: inv.invited_email, role: inv.role, pending: !inv.used } : null;
