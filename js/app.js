@@ -373,6 +373,24 @@ function fmtCLP(n) {
   return Number(n || 0).toLocaleString('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 });
 }
 
+// Escapa texto libre (nombres, notas, descripciones) antes de insertarlo como
+// contenido HTML o valor de atributo — toda la app arma su UI por
+// interpolación de strings + innerHTML sin sanitizar, así que un tutor
+// compartido podría meter HTML/JS en un campo de texto y afectar la sesión
+// del otro tutor cuando abre esa ficha. NUNCA usar dentro de un atributo
+// onclick="fn('${...}')" — ahí el valor es un literal de JS, no HTML, y
+// escaparlo rompería la llamada; eso solo aplica a ids internos (uuid/genId)
+// que la propia app genera, nunca a texto libre del usuario.
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ---- ROUTER ----
 // Rutas reales: la URL refleja la vista actual, el botón atrás/adelante del
 // navegador funciona, y recargar la página no te manda siempre al dashboard.
@@ -536,10 +554,10 @@ function sidebar() {
     </nav>
     <div class="px-3 py-3 border-t border-gray-100">
       <div class="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-gray-50 transition-colors">
-        <div class="w-8 h-8 rounded-full bg-brand-gradient flex items-center justify-center text-white text-xs font-bold flex-shrink-0">${(state.user?.name||'U')[0].toUpperCase()}</div>
+        <div class="w-8 h-8 rounded-full bg-brand-gradient flex items-center justify-center text-white text-xs font-bold flex-shrink-0">${esc((state.user?.name||'U')[0].toUpperCase())}</div>
         <div class="flex-1 min-w-0">
-          <div class="text-xs font-semibold text-gray-900 truncate">${state.user?.name||''}</div>
-          <div class="text-xs text-gray-400 truncate" title="${state.user?.email||''}">${state.user?.email||''}</div>
+          <div class="text-xs font-semibold text-gray-900 truncate">${esc(state.user?.name||'')}</div>
+          <div class="text-xs text-gray-400 truncate" title="${esc(state.user?.email||'')}">${esc(state.user?.email||'')}</div>
         </div>
         <button onclick="logout()" title="Cerrar sesión"
           class="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
@@ -611,7 +629,7 @@ function statCard(icon, label, value, color = 'brand') {
 
 function petAvatar(pet, size = 'sm') {
   const dim = size === 'lg' ? 'w-24 h-24 text-4xl' : 'w-14 h-14 text-2xl';
-  if (pet.photo) return `<img src="${pet.photo}" class="${size === 'lg' ? 'pet-avatar-lg' : 'pet-avatar'}" alt="${pet.name}" />`;
+  if (pet.photo) return `<img src="${pet.photo}" class="${size === 'lg' ? 'pet-avatar-lg' : 'pet-avatar'}" alt="${esc(pet.name)}" />`;
   return `<div class="${dim} pet-avatar-placeholder rounded-full">${speciesEmoji(pet.species)}</div>`;
 }
 
@@ -815,7 +833,7 @@ function viewDashboard() {
   if (pets.length === 0) {
     return appShell(`
       <div class="mb-5">
-        <h1 class="text-xl md:text-2xl font-bold text-gray-900">Hola, ${state.user?.name?.split(' ')[0] || 'Tutor'} 👋</h1>
+        <h1 class="text-xl md:text-2xl font-bold text-gray-900">Hola, ${esc(state.user?.name?.split(' ')[0] || 'Tutor')} 👋</h1>
         <p class="text-sm text-gray-400 mt-0.5 capitalize">${dateStr0}</p>
       </div>
       <div class="bg-white rounded-2xl shadow-sm p-6 md:p-10 text-center max-w-2xl mx-auto mt-4 md:mt-8">
@@ -859,7 +877,7 @@ function viewDashboard() {
 
   return appShell(`
     <div class="mb-5">
-      <h1 class="text-xl md:text-2xl font-bold text-gray-900">Hola, ${state.user?.name?.split(' ')[0] || 'Tutor'} 👋</h1>
+      <h1 class="text-xl md:text-2xl font-bold text-gray-900">Hola, ${esc(state.user?.name?.split(' ')[0] || 'Tutor')} 👋</h1>
       <p class="text-sm text-gray-400 mt-0.5 capitalize">${dateStr}</p>
     </div>
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6 stagger">
@@ -886,7 +904,7 @@ function viewDashboard() {
                  <div onclick="openPet('${p.id}')" class="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors">
                    ${petAvatar(p)}
                    <div class="flex-1 min-w-0">
-                     <div class="font-medium text-gray-900 text-sm">${p.name}</div>
+                     <div class="font-medium text-gray-900 text-sm">${esc(p.name)}</div>
                      <div class="text-xs text-gray-400">${p.species} · ${getAge(p.dateOfBirth)}</div>
                    </div>
                    <span class="text-gray-300 text-lg">›</span>
@@ -910,8 +928,8 @@ function viewDashboard() {
               <div class="flex items-start gap-3 p-3 rounded-xl border border-gray-100 mb-2">
                 <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600">${icon(eventIcon(e.type),'w-5 h-5')}</div>
                 <div>
-                  <div class="text-sm font-medium text-gray-900">${e.title}</div>
-                  <div class="text-xs text-gray-400">${formatDate(e.date)} · ${e.pet || 'Sin mascota'}</div>
+                  <div class="text-sm font-medium text-gray-900">${esc(e.title)}</div>
+                  <div class="text-xs text-gray-400">${formatDate(e.date)} · ${esc(e.pet || 'Sin mascota')}</div>
                 </div>
               </div>`).join('')}
       </div>
@@ -923,7 +941,7 @@ function viewDashboard() {
           ${alerts.slice(0,4).map(a => `
             <div class="flex items-center gap-3 bg-white rounded-xl p-3">
               <span class="text-gray-500">${icon(a.icon,'w-5 h-5')}</span>
-              <div class="flex-1"><div class="text-sm font-medium text-gray-800">${a.name}</div>
+              <div class="flex-1"><div class="text-sm font-medium text-gray-800">${esc(a.name)}</div>
               <div class="text-xs text-gray-400">Vence: ${formatDate(a.nextDate || a.endDate)}</div></div>
               <span class="badge ${a.status.badge} text-xs flex-shrink-0">${a.status.label}</span>
             </div>`).join('')}
@@ -972,11 +990,11 @@ function viewDashboard() {
         const ageYears = p.dateOfBirth ? Math.floor((Date.now() - new Date(p.dateOfBirth).getTime()) / (365.25*86400000)) : 0;
         const lastVaccDate = (p.vaccines||[]).reduce((max,v) => v.date>max?v.date:max, '');
         const vaccineAge = lastVaccDate ? Math.floor((Date.now()-new Date(lastVaccDate).getTime())/(30.44*86400000)) : 999;
-        if (p.species === 'Perro' && ageYears >= 7) recs.push({ icon:'flask', text:`${p.name} tiene ${ageYears} años. Considera análisis de sangre anual para detección temprana.` });
-        if (p.species === 'Perro' && (p.breed||'').match(/Golden Retriever|Labrador/i)) recs.push({ icon:'warning', text:`Los ${p.breed}s son propensos a displasia de cadera. Consulta con tu vet sobre control radiológico.` });
-        if (p.species === 'Gato' && ageYears >= 10) recs.push({ icon:'heart', text:`${p.name} es un gato senior (${ageYears} años). Necesita revisiones veterinarias cada 6 meses.` });
-        if (!p.vet?.name) recs.push({ icon:'clipboard', text:`${p.name} no tiene datos de veterinario. Regístralos para tener acceso rápido en emergencias.` });
-        if (vaccineAge >= 12) recs.push({ icon:'flask', text:`${p.name} lleva más de un año sin registrar vacunas. Revisa el calendario de vacunación.` });
+        if (p.species === 'Perro' && ageYears >= 7) recs.push({ icon:'flask', text:`${esc(p.name)} tiene ${ageYears} años. Considera análisis de sangre anual para detección temprana.` });
+        if (p.species === 'Perro' && (p.breed||'').match(/Golden Retriever|Labrador/i)) recs.push({ icon:'warning', text:`Los ${esc(p.breed)}s son propensos a displasia de cadera. Consulta con tu vet sobre control radiológico.` });
+        if (p.species === 'Gato' && ageYears >= 10) recs.push({ icon:'heart', text:`${esc(p.name)} es un gato senior (${ageYears} años). Necesita revisiones veterinarias cada 6 meses.` });
+        if (!p.vet?.name) recs.push({ icon:'clipboard', text:`${esc(p.name)} no tiene datos de veterinario. Regístralos para tener acceso rápido en emergencias.` });
+        if (vaccineAge >= 12) recs.push({ icon:'flask', text:`${esc(p.name)} lleva más de un año sin registrar vacunas. Revisa el calendario de vacunación.` });
       });
 
       const shownRecs = recs.slice(0,2);
@@ -992,12 +1010,12 @@ function viewDashboard() {
             ${streakCards.map(s => s.streak > 0
               ? `<div class="flex items-center gap-2 p-2.5 bg-orange-50 rounded-xl">
                    <span class="text-orange-500">${icon('fire','w-5 h-5')}</span>
-                   <div><div class="text-sm font-semibold text-gray-800">${s.name}</div>
+                   <div><div class="text-sm font-semibold text-gray-800">${esc(s.name)}</div>
                    <div class="text-xs text-orange-600">${s.streak} día${s.streak!==1?'s':''} seguido${s.streak!==1?'s':''} sin saltarse una dosis</div></div>
                  </div>`
               : `<div class="flex items-center gap-2 p-2.5 bg-gray-50 rounded-xl">
                    <span class="text-gray-400">${icon('fire','w-5 h-5')}</span>
-                   <div class="text-sm text-gray-600">¡Empieza hoy tu racha con ${s.name}!</div>
+                   <div class="text-sm text-gray-600">¡Empieza hoy tu racha con ${esc(s.name)}!</div>
                  </div>`
             ).join('')}
           </div>
@@ -1011,7 +1029,7 @@ function viewDashboard() {
               <div class="flex items-center gap-2 p-2.5 bg-pink-50 rounded-xl">
                 <span class="text-xl">🎂</span>
                 <div>
-                  <div class="text-sm font-semibold text-gray-800">${b.name} cumple ${b.age} año${b.age!==1?'s':''}</div>
+                  <div class="text-sm font-semibold text-gray-800">${esc(b.name)} cumple ${b.age} año${b.age!==1?'s':''}</div>
                   <div class="text-xs text-pink-600">${b.days === 0 ? '¡Hoy es su cumpleaños! 🎉' : `En ${b.days} día${b.days!==1?'s':''}`}</div>
                 </div>
               </div>`).join('')}
@@ -1094,7 +1112,7 @@ function viewPets() {
                <!-- Contenido central -->
                <div class="flex flex-col items-center text-center pt-4">
                  ${petAvatar(p, 'lg')}
-                 <div class="mt-3 font-bold text-gray-900">${p.name}</div>
+                 <div class="mt-3 font-bold text-gray-900">${esc(p.name)}</div>
                  <div class="text-sm text-gray-400 mt-0.5">${p.species} · ${p.breed || 'Mestizo'}</div>
                  <div class="text-xs text-gray-400 mt-0.5">${getAge(p.dateOfBirth)}</div>
                  <div class="flex gap-2 mt-3 flex-wrap justify-center">
@@ -1170,7 +1188,7 @@ function stepBasic() {
       <div class="space-y-3">
         <div>
           <label class="form-label">Nombre *</label>
-          <input id="pet-name" type="text" required value="${d.name||''}" placeholder="Nombre de tu mascota" class="input-field" oninput="clearFieldError('pet-name')" />
+          <input id="pet-name" type="text" required value="${esc(d.name||'')}" placeholder="Nombre de tu mascota" class="input-field" oninput="clearFieldError('pet-name')" />
           <p id="pet-name-error" class="text-xs text-red-500 mt-1 hidden">Ingresa el nombre de tu mascota para continuar</p>
         </div>
         <!-- Especie + Sexo siempre en 2 col (selects cortos) -->
@@ -1259,7 +1277,7 @@ function stepPhysical() {
         </div>
         <div>
           <label class="form-label">Nro. de chip</label>
-          <input id="pet-chip" type="text" value="${d.chipNumber||''}" placeholder="123456789" class="input-field" />
+          <input id="pet-chip" type="text" value="${esc(d.chipNumber||'')}" placeholder="123456789" class="input-field" />
         </div>
       </div>
       <div>
@@ -1311,20 +1329,20 @@ function stepHealth() {
       <div class="space-y-3">
         <div>
           <label class="form-label">Nombre del veterinario</label>
-          <input id="vet-name" type="text" value="${d.vet?.name||''}" placeholder="Dr. García" class="input-field" />
+          <input id="vet-name" type="text" value="${esc(d.vet?.name||'')}" placeholder="Dr. García" class="input-field" />
         </div>
         <div>
           <label class="form-label">Clínica</label>
-          <input id="vet-clinic" type="text" value="${d.vet?.clinic||''}" placeholder="Clínica Veterinaria" class="input-field" />
+          <input id="vet-clinic" type="text" value="${esc(d.vet?.clinic||'')}" placeholder="Clínica Veterinaria" class="input-field" />
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label class="form-label">Teléfono</label>
-            <input id="vet-phone" type="tel" value="${d.vet?.phone||''}" placeholder="+56 9 1234 5678" class="input-field" />
+            <input id="vet-phone" type="tel" value="${esc(d.vet?.phone||'')}" placeholder="+56 9 1234 5678" class="input-field" />
           </div>
           <div>
             <label class="form-label">Email</label>
-            <input id="vet-email" type="email" value="${d.vet?.email||''}" placeholder="vet@clinica.cl" class="input-field" />
+            <input id="vet-email" type="email" value="${esc(d.vet?.email||'')}" placeholder="vet@clinica.cl" class="input-field" />
           </div>
         </div>
       </div>
@@ -1339,11 +1357,11 @@ function stepTutors() {
       <div class="bg-brand-50 border border-brand-100 rounded-xl p-4">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-full bg-brand-gradient flex items-center justify-center text-white font-bold">
-            ${(state.user?.name||'U')[0].toUpperCase()}
+            ${esc((state.user?.name||'U')[0].toUpperCase())}
           </div>
           <div>
-            <div class="font-medium text-gray-900 text-sm">${state.user?.name || 'Tu nombre'}</div>
-            <div class="text-xs text-gray-500">${state.user?.email || ''}</div>
+            <div class="font-medium text-gray-900 text-sm">${esc(state.user?.name || 'Tu nombre')}</div>
+            <div class="text-xs text-gray-500">${esc(state.user?.email || '')}</div>
             <span class="badge bg-brand-100 text-brand-700 mt-1">Tutor principal</span>
           </div>
         </div>
@@ -1357,11 +1375,11 @@ function stepTutors() {
       <div id="tutor2-fields" class="${d.tutor2?.name?'':'hidden'} space-y-3 p-4 border border-gray-200 rounded-xl">
         <div>
           <label class="form-label">Nombre</label>
-          <input id="t2-name" type="text" value="${d.tutor2?.name||''}" placeholder="Nombre del segundo tutor" class="input-field" />
+          <input id="t2-name" type="text" value="${esc(d.tutor2?.name||'')}" placeholder="Nombre del segundo tutor" class="input-field" />
         </div>
         <div>
           <label class="form-label">Email</label>
-          <input id="t2-email" type="email" value="${d.tutor2?.email||''}" placeholder="email@ejemplo.com" class="input-field" />
+          <input id="t2-email" type="email" value="${esc(d.tutor2?.email||'')}" placeholder="email@ejemplo.com" class="input-field" />
         </div>
         <div>
           <label class="form-label">Permisos</label>
@@ -1396,7 +1414,7 @@ function viewPetProfile() {
           <div class="flex-1 min-w-0">
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0 flex-1">
-                <h1 class="text-lg md:text-xl font-bold text-gray-900 truncate">${pet.name}</h1>
+                <h1 class="text-lg md:text-xl font-bold text-gray-900 truncate">${esc(pet.name)}</h1>
                 <div class="text-xs md:text-sm text-gray-400">${pet.species} · ${pet.breed || 'Mestizo'}${pet.sex ? ` · ${pet.sex}` : ''}</div>
                 <div class="text-xs md:text-sm text-gray-400">${getAge(pet.dateOfBirth)}</div>
               </div>
@@ -1461,18 +1479,18 @@ function tabGeneral(pet) {
       <div class="bg-white rounded-2xl shadow-sm p-5">
         <h3 class="font-semibold text-gray-700 mb-3">Datos básicos</h3>
         <dl class="space-y-2 text-sm">
-          ${infoRow('Especie', pet.species)} ${infoRow('Raza', pet.breed||'Mestizo')}
-          ${infoRow('Sexo', pet.sex)} ${infoRow('Nacimiento', formatDate(pet.dateOfBirth))}
+          ${infoRow('Especie', esc(pet.species))} ${infoRow('Raza', esc(pet.breed||'Mestizo'))}
+          ${infoRow('Sexo', esc(pet.sex))} ${infoRow('Nacimiento', formatDate(pet.dateOfBirth))}
           ${infoRow('Edad', getAge(pet.dateOfBirth))}
         </dl>
       </div>
       <div class="bg-white rounded-2xl shadow-sm p-5">
         <h3 class="font-semibold text-gray-700 mb-3">Datos físicos</h3>
         <dl class="space-y-2 text-sm">
-          ${infoRow('Color', pet.color)} ${infoRow('Tamaño', pet.sizeRange)}
+          ${infoRow('Color', esc(pet.color))} ${infoRow('Tamaño', esc(pet.sizeRange))}
           ${infoRow('Peso', pet.weightKg ? `${pet.weightKg} kg ${pet.weightGr||0} gr` : '—')}
-          ${infoRow('Estado reproductivo', pet.reproductiveStatus)}
-          ${infoRow('Nro. chip', pet.chipNumber||'Sin chip')}
+          ${infoRow('Estado reproductivo', esc(pet.reproductiveStatus))}
+          ${infoRow('Nro. chip', esc(pet.chipNumber||'Sin chip'))}
           ${infoRow('Nivel actividad', ['','Bajo','Medio','Alto'][pet.activityLevel]||'—')}
         </dl>
       </div>
@@ -1480,21 +1498,21 @@ function tabGeneral(pet) {
       <div class="bg-white rounded-2xl shadow-sm p-5">
         <h3 class="font-semibold text-gray-700 mb-3">Salud</h3>
         <dl class="space-y-2 text-sm">
-          ${infoRow('Alergias', (pet.allergies||[]).join(', ')||'Ninguna')}
-          ${infoRow('Condiciones crónicas', Array.isArray(pet.chronicConditions) ? (pet.chronicConditions.join(', ')||'Ninguna') : (pet.chronicConditions||'Ninguna'))}
+          ${infoRow('Alergias', esc((pet.allergies||[]).join(', ')||'Ninguna'))}
+          ${infoRow('Condiciones crónicas', esc(Array.isArray(pet.chronicConditions) ? (pet.chronicConditions.join(', ')||'Ninguna') : (pet.chronicConditions||'Ninguna')))}
         </dl>
       </div>` : ''}
       ${pet.vet?.name ? `
       <div class="bg-white rounded-2xl shadow-sm p-5">
         <h3 class="font-semibold text-gray-700 mb-3">Veterinario</h3>
         <dl class="space-y-2 text-sm">
-          ${infoRow('Nombre', pet.vet.name)} ${infoRow('Clínica', pet.vet.clinic)}
-          ${infoRow('Teléfono', pet.vet.phone ? `<span>${pet.vet.phone}</span>
+          ${infoRow('Nombre', esc(pet.vet.name))} ${infoRow('Clínica', esc(pet.vet.clinic))}
+          ${infoRow('Teléfono', pet.vet.phone ? `<span>${esc(pet.vet.phone)}</span>
             ${pet.vet.phone ? `<a href="https://wa.me/${pet.vet.phone.replace(/\D/g,'')}" target="_blank"
               class="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-green-100 text-green-700 text-xs font-medium hover:bg-green-200 transition-colors">
               <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M11.999 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.932-1.414C8.354 21.481 10.146 22 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/></svg>
               WhatsApp</a>` : ''}` : '—')}
-          ${infoRow('Email', pet.vet.email ? `<a href="mailto:${pet.vet.email}" class="text-brand-600 hover:underline">${pet.vet.email}</a>` : '—')}
+          ${infoRow('Email', pet.vet.email ? `<a href="mailto:${encodeURIComponent(pet.vet.email)}" class="text-brand-600 hover:underline">${esc(pet.vet.email)}</a>` : '—')}
         </dl>
       </div>` : ''}
       <div class="bg-white rounded-2xl shadow-sm p-5">
@@ -1506,13 +1524,13 @@ function tabGeneral(pet) {
         </div>
         ${pet.tutor2?.name
           ? `<div class="flex items-center gap-3">
-               <div class="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center font-bold text-brand-600">${pet.tutor2.name[0].toUpperCase()}</div>
+               <div class="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center font-bold text-brand-600">${esc(pet.tutor2.name[0].toUpperCase())}</div>
                <div>
-                 <div class="text-sm font-medium text-gray-900">${pet.tutor2.name} ${pet.tutor2.pending ? '<span class="badge bg-amber-100 text-amber-600 ml-1">Invitación pendiente</span>' : ''}</div>
-                 <div class="text-xs text-gray-400">${pet.tutor2.email} · <span class="capitalize">${pet.tutor2.role||'lectura'}</span></div>
+                 <div class="text-sm font-medium text-gray-900">${esc(pet.tutor2.name)} ${pet.tutor2.pending ? '<span class="badge bg-amber-100 text-amber-600 ml-1">Invitación pendiente</span>' : ''}</div>
+                 <div class="text-xs text-gray-400">${esc(pet.tutor2.email)} · <span class="capitalize">${esc(pet.tutor2.role||'lectura')}</span></div>
                </div>
              </div>`
-          : `<p class="text-sm text-gray-400">Sin segundo tutor asignado. Invita a alguien para que también pueda ver y gestionar a ${pet.name}.</p>`}
+          : `<p class="text-sm text-gray-400">Sin segundo tutor asignado. Invita a alguien para que también pueda ver y gestionar a ${esc(pet.name)}.</p>`}
       </div>
     </div>`;
 }
@@ -1541,10 +1559,10 @@ function tabVaccines(pet) {
                  <div class="flex items-start gap-3">
                    <div class="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500">${icon('flask','w-4.5 h-4.5')}</div>
                    <div>
-                     <div class="font-medium text-gray-900 text-sm">${v.name}</div>
-                     <div class="text-xs text-gray-400">${v.code ? `Código: ${v.code} · ` : ''}Aplicada: ${formatDate(v.date)}</div>
+                     <div class="font-medium text-gray-900 text-sm">${esc(v.name)}</div>
+                     <div class="text-xs text-gray-400">${v.code ? `Código: ${esc(v.code)} · ` : ''}Aplicada: ${formatDate(v.date)}</div>
                      ${v.nextDate ? `<div class="text-xs mt-1 ${st.color}">Próxima: ${formatDate(v.nextDate)}${st.label ? ` · <span class="badge ${st.badge}">${st.label}</span>` : ''}</div>` : ''}
-                     ${v.alertType ? `<div class="text-xs text-brand-500 flex items-center gap-1">${icon('bell','w-3 h-3')} Alerta configurada: ${{same:'El mismo día',week:'1 semana antes',custom:`${v.alertDays} días antes`}[v.alertType]||v.alertType}</div>` : ''}
+                     ${v.alertType ? `<div class="text-xs text-brand-500 flex items-center gap-1">${icon('bell','w-3 h-3')} Alerta configurada: ${{same:'El mismo día',week:'1 semana antes',custom:`${esc(v.alertDays)} días antes`}[v.alertType]||v.alertType}</div>` : ''}
                      ${v.cost ? `<div class="text-xs text-gray-400">Costo: ${fmtCLP(v.cost)}</div>` : ''}
                    </div>
                  </div>
@@ -1584,10 +1602,10 @@ function tabDeworming(pet) {
                  <div class="w-9 h-9 bg-teal-50 rounded-xl flex items-center justify-center text-teal-600 flex-shrink-0">${icon('bug','w-4.5 h-4.5')}</div>
                  <div class="flex-1 min-w-0">
                    <div class="flex items-center gap-2 flex-wrap">
-                     <span class="font-medium text-gray-900 text-sm">${d.product}</span>
-                     <span class="badge bg-teal-50 text-teal-700 text-xs">${d.type}</span>
+                     <span class="font-medium text-gray-900 text-sm">${esc(d.product)}</span>
+                     <span class="badge bg-teal-50 text-teal-700 text-xs">${esc(d.type)}</span>
                    </div>
-                   <div class="text-xs text-gray-400">${d.format} · Dosis: ${d.dose} ${d.unit} · ${formatDate(d.date)}</div>
+                   <div class="text-xs text-gray-400">${esc(d.format)} · Dosis: ${esc(d.dose)} ${esc(d.unit)} · ${formatDate(d.date)}</div>
                    ${d.nextDate ? `<div class="text-xs ${st.color} font-medium">Próxima: ${formatDate(d.nextDate)}${st.label ? ` · <span class="badge ${st.badge}">${st.label}</span>` : ''}</div>` : ''}
                  </div>
                  <div class="flex items-center gap-1 flex-shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
@@ -1641,23 +1659,23 @@ function tabMedications(pet) {
                      <div class="w-10 h-10 rounded-xl ${m.active?'bg-brand-50 text-brand-600':'bg-gray-50 text-gray-400'} flex items-center justify-center flex-shrink-0">${icon('pill','w-5 h-5')}</div>
                      <div class="flex-1 min-w-0">
                        <div class="flex items-center gap-2 flex-wrap">
-                         <span class="font-semibold text-gray-900">${m.name}</span>
+                         <span class="font-semibold text-gray-900">${esc(m.name)}</span>
                          ${m.active ? '<span class="badge bg-green-100 text-green-700">Activo</span>' : '<span class="badge bg-gray-100 text-gray-500">Finalizado</span>'}
                          ${isExpired ? '<span class="badge bg-red-100 text-red-600">Vencido</span>' : ''}
                          ${expiringSoon ? '<span class="badge bg-amber-100 text-amber-600">Por vencer</span>' : ''}
                        </div>
                        <div class="text-xs text-gray-400 mt-0.5">
-                         ${m.dose || `${m.doseVal||''} ${m.doseUnit||''}`} · ${m.frequency}
+                         ${esc(m.dose || `${m.doseVal||''} ${m.doseUnit||''}`)} · ${esc(m.frequency)}
                        </div>
                        <div class="text-xs text-gray-400">
                          ${icon('calendar','w-3 h-3 inline align-text-bottom')} ${formatDate(m.startDate)}${m.endDate ? ` → ${formatDate(m.endDate)}` : ''}
-                         ${m.startTime ? ` · ⏰ ${m.startTime}` : ''}
+                         ${m.startTime ? ` · ⏰ ${esc(m.startTime)}` : ''}
                        </div>
-                       ${m.reminder ? `<div class="text-xs text-brand-500 mt-0.5 flex items-center gap-1">${icon('bell','w-3 h-3')} ${reminderLabel}</div>` : ''}
+                       ${m.reminder ? `<div class="text-xs text-brand-500 mt-0.5 flex items-center gap-1">${icon('bell','w-3 h-3')} ${esc(reminderLabel)}</div>` : ''}
                        ${(() => { const ms = medStockStatus(m); if (!ms) return ''; const barColor = { critico:'bg-red-400', bajo:'bg-amber-400', ok:'bg-green-400' }[ms.level]; return `
                          <div class="mt-2">
                            <div class="flex justify-between text-xs text-gray-500 mb-1">
-                             <span>Stock: ${m.stockTotal} ${m.stockUnit||''} · ${ms.label}</span>
+                             <span>Stock: ${m.stockTotal} ${esc(m.stockUnit||'')} · ${esc(ms.label)}</span>
                              ${m.expiry ? `<span class="${isExpired?'text-red-500':expiringSoon?'text-amber-500':'text-gray-400'}">Cad: ${formatDate(m.expiry)}</span>` : ''}
                            </div>
                            <div class="w-full bg-gray-100 rounded-full h-1.5">
@@ -1708,21 +1726,21 @@ function tabHistory(pet) {
                    <div class="flex items-start justify-between gap-2">
                      <div class="flex-1 min-w-0">
                        <div class="flex items-center gap-2 flex-wrap">
-                         <span class="font-medium text-gray-900 text-sm">${h.title}</span>
-                         <span class="badge ${typeColors[h.type]||'bg-gray-50 text-gray-600'}">${h.type}</span>
+                         <span class="font-medium text-gray-900 text-sm">${esc(h.title)}</span>
+                         <span class="badge ${typeColors[h.type]||'bg-gray-50 text-gray-600'}">${esc(h.type)}</span>
                        </div>
-                       <div class="text-xs text-gray-400 mt-0.5">${formatDate(h.date)}${h.doctor ? ` · ${h.doctor}` : ''}${h.clinic ? ` · ${h.clinic}` : ''}</div>
-                       ${h.notes ? `<p class="text-sm text-gray-600 mt-1">${h.notes}</p>` : ''}
+                       <div class="text-xs text-gray-400 mt-0.5">${formatDate(h.date)}${h.doctor ? ` · ${esc(h.doctor)}` : ''}${h.clinic ? ` · ${esc(h.clinic)}` : ''}</div>
+                       ${h.notes ? `<p class="text-sm text-gray-600 mt-1">${esc(h.notes)}</p>` : ''}
                        ${h.cost ? `<div class="text-xs text-gray-400 mt-1">Costo: ${fmtCLP(h.cost)}</div>` : ''}
                        ${(h.files||[]).length > 0 ? `
                          <div class="flex flex-wrap gap-2 mt-2">
                            ${h.files.map((f,fi) => f.data.startsWith('data:image') ? `
-                             <a href="${f.data}" target="_blank" title="${f.name}">
+                             <a href="${f.data}" target="_blank" title="${esc(f.name)}">
                                <img src="${f.data}" class="h-16 w-16 object-cover rounded-lg border border-gray-200 hover:opacity-80 transition-opacity" />
                              </a>` : `
-                             <a href="${f.data}" download="${f.name}"
+                             <a href="${f.data}" download="${esc(f.name)}"
                                class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-xs text-gray-700 transition-colors">
-                               ${icon('paperclip','w-3 h-3 inline align-text-bottom')} ${f.name}
+                               ${icon('paperclip','w-3 h-3 inline align-text-bottom')} ${esc(f.name)}
                              </a>`).join('')}
                          </div>` : ''}
                      </div>
@@ -1782,8 +1800,8 @@ function viewCalendar() {
                <div class="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-gray-50 transition-colors group">
                  <div class="w-9 h-9 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600 flex-shrink-0">${icon(eventIcon(e.type),'w-4.5 h-4.5')}</div>
                  <div class="flex-1 min-w-0">
-                   <div class="text-sm font-medium text-gray-900 truncate">${e.title}</div>
-                   <div class="text-xs text-gray-400">${formatDate(e.date)}${e.pet ? ` · ${e.pet}` : ''}${e.source && e.source !== 'manual' ? ` · <span class="text-gray-300">automático</span>` : ''}</div>
+                   <div class="text-sm font-medium text-gray-900 truncate">${esc(e.title)}</div>
+                   <div class="text-xs text-gray-400">${formatDate(e.date)}${e.pet ? ` · ${esc(e.pet)}` : ''}${e.source && e.source !== 'manual' ? ` · <span class="text-gray-300">automático</span>` : ''}</div>
                  </div>
                  ${(!e.source || e.source === 'manual') ? `
                  <button onclick="deleteEvent('${e.id}')"
@@ -1818,7 +1836,7 @@ function viewCalendar() {
             <button type="button" onclick="openEventModal('${dateStr}')" class="calendar-day ${isToday?'today':''} relative w-full text-left" aria-label="${ariaLabel}" aria-current="${isToday ? 'date' : 'false'}">
               <div class="text-[10px] md:text-xs font-semibold ${isToday?'text-brand-600':'text-gray-700'}">${d}</div>
               ${dayEvents.slice(0,2).map(e => `
-                <div class="hidden md:block text-xs mt-0.5 px-1 py-0.5 rounded bg-brand-100 text-brand-700 truncate flex items-center gap-1">${icon(eventIcon(e.type),'w-3 h-3 flex-shrink-0')} ${e.title}</div>
+                <div class="hidden md:block text-xs mt-0.5 px-1 py-0.5 rounded bg-brand-100 text-brand-700 truncate flex items-center gap-1">${icon(eventIcon(e.type),'w-3 h-3 flex-shrink-0')} ${esc(e.title)}</div>
                 <div class="md:hidden mt-0.5 w-1.5 h-1.5 rounded-full bg-brand-400 mx-auto"></div>
               `).join('')}
             </button>`;
@@ -1985,7 +2003,7 @@ function viewFinance() {
           <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Mascota</span>
           <select onchange="state.finPet=this.value;render()" class="input-field text-sm py-1.5" style="width:auto;min-width:130px">
             <option value="">Todas</option>
-            ${pets.map(p=>`<option ${petFilter===p.name?'selected':''}>${p.name}</option>`).join('')}
+            ${pets.map(p=>`<option ${petFilter===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}
           </select>
         </div>
         <!-- Vista toggle -->
@@ -2053,7 +2071,7 @@ function viewFinance() {
             const pct = total>0?Math.round(pt/total*100):0;
             return `<div class="mb-2">
               <div class="flex justify-between text-xs mb-1">
-                <span class="text-gray-600">${speciesEmoji(p.species)} ${p.name}</span>
+                <span class="text-gray-600">${speciesEmoji(p.species)} ${esc(p.name)}</span>
                 <span class="font-semibold">${fmtCLP(pt)}</span>
               </div>
               <div class="w-full bg-gray-100 rounded-full h-1.5">
@@ -2095,11 +2113,11 @@ function viewFinance() {
                      <tr class="border-b border-gray-50 hover:bg-gray-50 transition-colors group">
                        <td class="py-3 text-gray-400 whitespace-nowrap text-xs">${formatDate(e.date)}</td>
                        <td class="py-3 font-medium text-gray-800 max-w-[200px]">
-                         <span class="truncate block">${e.description}</span>
+                         <span class="truncate block">${esc(e.description)}</span>
                          ${e.source && e.source !== 'manual' ? `<span class="text-[10px] text-gray-400">Automático · ficha de la mascota</span>` : ''}
                        </td>
-                       <td class="py-3 text-gray-500 text-xs">${e.pet ? `${speciesEmoji(pets.find(p=>p.name===e.pet)?.species||'')} ${e.pet}` : '—'}</td>
-                       <td class="py-3"><span class="badge text-xs" style="background:${catColors[e.category]+'22'};color:${catColors[e.category]}">${e.category||'—'}</span></td>
+                       <td class="py-3 text-gray-500 text-xs">${e.pet ? `${speciesEmoji(pets.find(p=>p.name===e.pet)?.species||'')} ${esc(e.pet)}` : '—'}</td>
+                       <td class="py-3"><span class="badge text-xs" style="background:${catColors[e.category]+'22'};color:${catColors[e.category]}">${esc(e.category||'—')}</span></td>
                        <td class="py-3 text-right font-bold text-gray-900 whitespace-nowrap">${fmtCLP(e.amount)}</td>
                        <td class="py-3 text-right">
                          ${(!e.source || e.source === 'manual') ? `
@@ -2517,7 +2535,7 @@ function openEventModal(dateStr = '') {
           <div><label class="form-label">Mascota</label>
             <select id="ev-pet" class="input-field">
               <option value="">Sin mascota</option>
-              ${pets.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+              ${pets.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -2551,7 +2569,7 @@ function openExpenseModal() {
           <div><label class="form-label">Mascota</label>
             <select id="ex-pet" class="input-field">
               <option value="">General</option>
-              ${pets.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+              ${pets.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -2592,16 +2610,16 @@ function openEditPetModal(petId) {
             ${p.photo ? 'Cambiar foto' : 'Subir foto'} <input type="file" accept="image/*" class="hidden" onchange="previewEditPhoto(event)" />
           </label>
         </div>
-        <div><label class="form-label">Nombre</label><input id="ep-name" value="${p.name||''}" class="input-field" /></div>
+        <div><label class="form-label">Nombre</label><input id="ep-name" value="${esc(p.name||'')}" class="input-field" /></div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="form-label">Especie</label>
             <select id="ep-species" class="input-field">${['Perro','Gato','Ave','Conejo','Pez','Hámster','Reptil','Otro'].map(s=>`<option ${p.species===s?'selected':''}>${s}</option>`).join('')}</select>
           </div>
-          <div><label class="form-label">Raza</label><input id="ep-breed" value="${p.breed||''}" class="input-field" /></div>
+          <div><label class="form-label">Raza</label><input id="ep-breed" value="${esc(p.breed||'')}" class="input-field" /></div>
           <div><label class="form-label">Sexo</label>
             <select id="ep-sex" class="input-field">${['Macho','Hembra'].map(s=>`<option ${p.sex===s?'selected':''}>${s}</option>`).join('')}</select>
           </div>
-          <div><label class="form-label">Color</label><input id="ep-color" value="${p.color||''}" class="input-field" /></div>
+          <div><label class="form-label">Color</label><input id="ep-color" value="${esc(p.color||'')}" class="input-field" /></div>
           <div><label class="form-label">Tamaño</label>
             <select id="ep-size" class="input-field">${sizeOpts.map(s=>`<option value="${s.label}" ${p.sizeRange===s.label?'selected':''}>${s.label} (${s.range})</option>`).join('')}</select>
           </div>
@@ -2611,7 +2629,7 @@ function openEditPetModal(petId) {
           <div><label class="form-label">Estado reproductivo</label>
             <select id="ep-repro" class="input-field">${['Entero/a','Esterilizado/a','Castrado/a'].map(s=>`<option ${p.reproductiveStatus===s?'selected':''}>${s}</option>`).join('')}</select>
           </div>
-          <div class="col-span-2"><label class="form-label">Nro. de chip</label><input id="ep-chip" value="${p.chipNumber||''}" class="input-field" /></div>
+          <div class="col-span-2"><label class="form-label">Nro. de chip</label><input id="ep-chip" value="${esc(p.chipNumber||'')}" class="input-field" /></div>
         </div>
         <div>
           <label class="form-label">Nivel de actividad</label>
@@ -2645,10 +2663,10 @@ function openEditPetModal(petId) {
         <hr class="border-gray-100" />
         <h3 class="font-semibold text-gray-700 text-sm">Veterinario de cabecera</h3>
         <div class="grid grid-cols-2 gap-3">
-          <div class="col-span-2"><label class="form-label">Nombre</label><input id="ep-vet-name" value="${p.vet?.name||''}" class="input-field" /></div>
-          <div class="col-span-2"><label class="form-label">Clínica</label><input id="ep-vet-clinic" value="${p.vet?.clinic||''}" class="input-field" /></div>
-          <div><label class="form-label">Teléfono</label><input id="ep-vet-phone" value="${p.vet?.phone||''}" class="input-field" /></div>
-          <div><label class="form-label">Email</label><input id="ep-vet-email" value="${p.vet?.email||''}" class="input-field" /></div>
+          <div class="col-span-2"><label class="form-label">Nombre</label><input id="ep-vet-name" value="${esc(p.vet?.name||'')}" class="input-field" /></div>
+          <div class="col-span-2"><label class="form-label">Clínica</label><input id="ep-vet-clinic" value="${esc(p.vet?.clinic||'')}" class="input-field" /></div>
+          <div><label class="form-label">Teléfono</label><input id="ep-vet-phone" value="${esc(p.vet?.phone||'')}" class="input-field" /></div>
+          <div><label class="form-label">Email</label><input id="ep-vet-email" value="${esc(p.vet?.email||'')}" class="input-field" /></div>
         </div>
         <div class="flex gap-3 pt-2">
           <button type="button" onclick="closeModal()" class="btn-secondary flex-1">Cancelar</button>
@@ -2924,11 +2942,11 @@ function openDeletePetWithCode(petId) {
     <div class="modal-box p-4 sm:p-6">
       <div class="text-center mb-4">
         <div class="mb-2 flex justify-center text-red-400">${icon('trash','w-12 h-12')}</div>
-        <h3 class="text-lg font-bold text-gray-900">Eliminar a ${pet.name}</h3>
+        <h3 class="text-lg font-bold text-gray-900">Eliminar a ${esc(pet.name)}</h3>
         <p class="text-sm text-gray-500 mt-1">
           ${hasTwoTutors
             ? `Esta mascota tiene 2 tutores. Solo se eliminará de <strong>tu perfil</strong>. El otro tutor mantendrá acceso.`
-            : `Esta acción eliminará toda la información de <strong>${pet.name}</strong> permanentemente.`}
+            : `Esta acción eliminará toda la información de <strong>${esc(pet.name)}</strong> permanentemente.`}
         </p>
       </div>
       <div id="delete-step-1">
@@ -3731,8 +3749,8 @@ function viewBotiquin() {
                  <div class="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center text-gray-500 flex-shrink-0">${icon('kit','w-4.5 h-4.5')}</div>
                  <div class="flex-1 min-w-0">
                    <div class="flex items-center gap-2 flex-wrap">
-                     <span class="font-medium text-gray-900 text-sm">${item.name}</span>
-                     ${item.category ? `<span class="badge bg-gray-100 text-gray-500 text-xs">${item.category}</span>` : ''}
+                     <span class="font-medium text-gray-900 text-sm">${esc(item.name)}</span>
+                     ${item.category ? `<span class="badge bg-gray-100 text-gray-500 text-xs">${esc(item.category)}</span>` : ''}
                      <span class="badge text-xs ${statusColor[st]}">${statusLabel[st]}</span>
                    </div>
                    <div class="text-xs mt-0.5 text-gray-400">
@@ -3770,8 +3788,8 @@ function viewBotiquin() {
       <div class="flex gap-2 overflow-x-auto pb-1 -mb-1" style="scrollbar-width:none">
         ${expiringSoon.map(m => `
           <div class="bg-white rounded-xl px-3 py-2 text-sm border border-amber-200 flex items-center gap-2 flex-shrink-0">
-            <span class="font-medium text-gray-800">${m.name}</span>
-            <span class="badge bg-brand-50 text-brand-600 text-xs">${m.petName}</span>
+            <span class="font-medium text-gray-800">${esc(m.name)}</span>
+            <span class="badge bg-brand-50 text-brand-600 text-xs">${esc(m.petName)}</span>
             <span class="text-amber-600 text-xs whitespace-nowrap">Vence ${formatDate(m.expiry)}</span>
           </div>`).join('')}
       </div>
@@ -3787,7 +3805,7 @@ function viewBotiquin() {
           </select>` : `
           <select onchange="state.botiquinFilter=this.value;render()" class="input-field text-sm py-1.5 w-auto">
             <option value="">Todas las mascotas</option>
-            ${pets.map(p => `<option ${filterPet===p.name?'selected':''}>${p.name}</option>`).join('')}
+            ${pets.map(p => `<option ${filterPet===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}
           </select>
           <select onchange="state.botiquinStatus=this.value;render()" class="input-field text-sm py-1.5 w-auto">
             <option value="">Todos los estados</option>
@@ -3812,8 +3830,8 @@ function viewBotiquin() {
                  <div class="w-9 h-9 rounded-xl ${m.active?'bg-brand-50 text-brand-600':'bg-gray-50 text-gray-400'} flex items-center justify-center flex-shrink-0">${icon('pill','w-4.5 h-4.5')}</div>
                  <div class="flex-1 min-w-0">
                    <div class="flex items-center gap-2 flex-wrap">
-                     <span class="font-medium text-gray-900 text-sm">${m.name}</span>
-                     <span class="badge bg-brand-50 text-brand-600 text-xs">${m.petName}</span>
+                     <span class="font-medium text-gray-900 text-sm">${esc(m.name)}</span>
+                     <span class="badge bg-brand-50 text-brand-600 text-xs">${esc(m.petName)}</span>
                      ${m.active ? '<span class="badge bg-green-100 text-green-700 text-xs">Activo</span>' : '<span class="badge bg-gray-100 text-gray-400 text-xs">Finalizado</span>'}
                    </div>
                    <div class="text-xs mt-0.5 ${isExpired?'text-red-500':isExpiringSoon?'text-amber-500':'text-gray-400'}">
@@ -3853,7 +3871,7 @@ function openBotiquinItemModal(itemId) {
     <div class="modal-box p-4 sm:p-6">
       <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">${item ? icon('pencil','w-5 h-5') : icon('kit','w-5 h-5')} ${item ? 'Editar producto' : 'Agregar producto al botiquín'}</h3>
       <form onsubmit="saveBotiquinItem(event${item ? `,'${item.id}'` : ''})" class="space-y-3">
-        <div><label class="form-label">Nombre *</label><input id="bq-name" required value="${item?.name||''}" placeholder="Ej: Vendas elásticas" class="input-field" /></div>
+        <div><label class="form-label">Nombre *</label><input id="bq-name" required value="${esc(item?.name||'')}" placeholder="Ej: Vendas elásticas" class="input-field" /></div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="form-label">Categoría</label>
             <select id="bq-category" class="input-field">${categories.map(c=>`<option ${c===item?.category?'selected':''}>${c}</option>`).join('')}</select>
@@ -3861,7 +3879,7 @@ function openBotiquinItemModal(itemId) {
           <div><label class="form-label">Mascota (opcional)</label>
             <select id="bq-pet" class="input-field">
               <option value="">General</option>
-              ${state.pets.map(p=>`<option value="${p.id}" ${p.id===item?.petId?'selected':''}>${p.name}</option>`).join('')}
+              ${state.pets.map(p=>`<option value="${p.id}" ${p.id===item?.petId?'selected':''}>${esc(p.name)}</option>`).join('')}
             </select>
           </div>
           <div><label class="form-label">Cantidad *</label><input id="bq-qty" type="number" min="0" step="0.1" required value="${item?.quantity??''}" class="input-field" /></div>
@@ -3870,7 +3888,7 @@ function openBotiquinItemModal(itemId) {
           </div>
         </div>
         <div><label class="form-label">Fecha de caducidad (opcional)</label><input id="bq-expiry" type="date" value="${item?.expiryDate||''}" class="input-field" /></div>
-        <div><label class="form-label">Notas</label><textarea id="bq-notes" rows="2" class="input-field resize-none">${item?.notes||''}</textarea></div>
+        <div><label class="form-label">Notas</label><textarea id="bq-notes" rows="2" class="input-field resize-none">${esc(item?.notes||'')}</textarea></div>
         <div class="flex gap-3 pt-2">
           <button type="button" onclick="closeModal()" class="btn-secondary flex-1">Cancelar</button>
           <button type="submit" class="btn-primary flex-1">Guardar</button>
@@ -3965,7 +3983,7 @@ function tabSeguimiento(pet) {
       ` : pet.weightKg ? `
         <div class="text-center py-6">
           <div class="text-2xl font-bold text-gray-800">${pet.weightKg} kg${pet.weightGr ? ` ${pet.weightGr} gr` : ''}</div>
-          <p class="text-sm text-gray-400 mt-1">Peso registrado en la ficha de ${pet.name} — aún no tiene historial de mediciones</p>
+          <p class="text-sm text-gray-400 mt-1">Peso registrado en la ficha de ${esc(pet.name)} — aún no tiene historial de mediciones</p>
         </div>
       ` : `
         <div class="text-center py-6">
@@ -4007,7 +4025,7 @@ function tabSeguimiento(pet) {
           <span class="text-2xl">${moodEmojis[todayMood.mood]}</span>
           <div>
             <div class="font-medium text-sm text-gray-800">Hoy: ${moodLabels[todayMood.mood]}</div>
-            ${todayMood.notes ? `<div class="text-xs text-gray-500">${todayMood.notes}</div>` : ''}
+            ${todayMood.notes ? `<div class="text-xs text-gray-500">${esc(todayMood.notes)}</div>` : ''}
           </div>
         </div>
       ` : `<p class="text-xs text-gray-400 mb-3">Aún no registraste el estado de hoy</p>`}
@@ -4041,7 +4059,7 @@ function tabSeguimiento(pet) {
                    <span class="text-xs text-gray-400">${formatDate(s.date)}</span>
                    ${(s.symptoms||[]).map(sym => `<span class="px-2 py-0.5 bg-red-100 text-red-700 rounded-lg text-xs font-medium">${sym}</span>`).join('')}
                  </div>
-                 ${s.notes ? `<p class="text-xs text-gray-600">${s.notes}</p>` : ''}
+                 ${s.notes ? `<p class="text-xs text-gray-600">${esc(s.notes)}</p>` : ''}
                </div>`).join('')}
            </div>`}
     </div>
@@ -4080,8 +4098,8 @@ function tabNutricion(pet) {
                <div class="p-3 bg-gray-50 rounded-xl">
                  <div class="flex items-start justify-between gap-3">
                    <div class="min-w-0">
-                     <div class="text-sm font-semibold text-gray-800 truncate">${f.product}</div>
-                     <div class="text-xs text-gray-400">${f.type || ''} · ${f.packageSize||0} ${f.packageUnit||''} · ${f.dailyAmount||0} ${f.packageUnit||''}/día${f.price ? ` · ${fmtCLP(f.price)}` : ''}</div>
+                     <div class="text-sm font-semibold text-gray-800 truncate">${esc(f.product)}</div>
+                     <div class="text-xs text-gray-400">${esc(f.type || '')} · ${f.packageSize||0} ${esc(f.packageUnit||'')} · ${f.dailyAmount||0} ${esc(f.packageUnit||'')}/día${f.price ? ` · ${fmtCLP(f.price)}` : ''}</div>
                    </div>
                    ${canEdit ? `<div class="flex items-center gap-1 flex-shrink-0">
                      <button onclick="openFoodItemModal('${pet.id}','${f.id}')" class="w-7 h-7 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 flex items-center justify-center transition-colors">${icon('pencil','w-3.5 h-3.5')}</button>
@@ -4254,7 +4272,7 @@ function openMoodModal(petId) {
         <input type="hidden" id="mood-val" value="${existing?.mood||''}" />
         <div>
           <label class="form-label">Notas (opcional)</label>
-          <textarea id="mood-notes" rows="2" class="input-field resize-none" placeholder="¿Cómo se comportó hoy?">${existing?.notes||''}</textarea>
+          <textarea id="mood-notes" rows="2" class="input-field resize-none" placeholder="¿Cómo se comportó hoy?">${esc(existing?.notes||'')}</textarea>
         </div>
         <div class="flex gap-3 pt-2">
           <button type="button" onclick="closeModal()" class="btn-secondary flex-1">Cancelar</button>
@@ -4378,7 +4396,7 @@ function openFoodItemModal(petId, itemId) {
     <div class="modal-box p-4 sm:p-6">
       <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">${icon('food','w-5 h-5')} ${item ? 'Editar alimento' : 'Agregar alimento'}</h3>
       <form onsubmit="saveFoodItem(event,'${petId}'${itemId ? `,'${itemId}'` : ''})" class="space-y-3">
-        <div><label class="form-label">Producto *</label><input id="fi-product" required value="${item?.product||''}" placeholder="Ej: Royal Canin Adult" class="input-field" /></div>
+        <div><label class="form-label">Producto *</label><input id="fi-product" required value="${esc(item?.product||'')}" placeholder="Ej: Royal Canin Adult" class="input-field" /></div>
         <div><label class="form-label">Tipo</label>
           <select id="fi-type" class="input-field">
             ${['Seco','Húmedo','BARF','Casero','Snack'].map(t => `<option ${item?.type===t?'selected':''}>${t}</option>`).join('')}
@@ -4400,7 +4418,7 @@ function openFoodItemModal(petId, itemId) {
         </div>
         <p class="text-xs text-gray-400 -mt-1">Usa la misma unidad en tamaño y consumo diario (ej: paquete de 15 kg, 0.3 kg diarios).</p>
         <div><label class="form-label">Fecha de compra</label><input id="fi-purchase" type="date" value="${item?.purchaseDate||todayStr()}" class="input-field" /></div>
-        <div><label class="form-label">Notas (opcional)</label><input id="fi-notes" value="${item?.notes||''}" class="input-field" /></div>
+        <div><label class="form-label">Notas (opcional)</label><input id="fi-notes" value="${esc(item?.notes||'')}" class="input-field" /></div>
         <div class="flex gap-3 pt-2">
           <button type="button" onclick="closeModal()" class="btn-secondary flex-1">Cancelar</button>
           <button type="submit" class="btn-primary flex-1">Guardar</button>
@@ -4504,33 +4522,33 @@ function exportPetRecord(petId) {
   openModal(`
     <div class="modal-box p-4 sm:p-6" id="export-record">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">${icon('document','w-5 h-5')} Expediente médico — ${pet.name}</h3>
+        <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">${icon('document','w-5 h-5')} Expediente médico — ${esc(pet.name)}</h3>
         <button onclick="closeModal()" class="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center justify-center">✕</button>
       </div>
 
       <div id="printable-record">
         <div class="border-b border-gray-200 pb-4 mb-4">
-          <h4 class="font-bold text-gray-800 text-lg">${pet.name}</h4>
-          <p class="text-sm text-gray-500">${pet.species} · ${pet.breed||'Mestizo'} · ${pet.sex||''} · ${getAge(pet.dateOfBirth)}</p>
-          ${pet.chipNumber ? `<p class="text-xs text-gray-400">Chip: ${pet.chipNumber}</p>` : ''}
-          ${pet.reproductiveStatus ? `<p class="text-xs text-gray-400">${pet.reproductiveStatus}</p>` : ''}
-          ${(pet.allergies||[]).length ? `<p class="text-xs text-red-500 font-medium">Alergias: ${pet.allergies.join(', ')}</p>` : ''}
-          ${(pet.chronicConditions||[]).filter(c=>c!=='Ninguna').length ? `<p class="text-xs text-orange-600 font-medium">Condiciones: ${pet.chronicConditions.join(', ')}</p>` : ''}
+          <h4 class="font-bold text-gray-800 text-lg">${esc(pet.name)}</h4>
+          <p class="text-sm text-gray-500">${esc(pet.species)} · ${esc(pet.breed||'Mestizo')} · ${esc(pet.sex||'')} · ${getAge(pet.dateOfBirth)}</p>
+          ${pet.chipNumber ? `<p class="text-xs text-gray-400">Chip: ${esc(pet.chipNumber)}</p>` : ''}
+          ${pet.reproductiveStatus ? `<p class="text-xs text-gray-400">${esc(pet.reproductiveStatus)}</p>` : ''}
+          ${(pet.allergies||[]).length ? `<p class="text-xs text-red-500 font-medium">Alergias: ${esc(pet.allergies.join(', '))}</p>` : ''}
+          ${(pet.chronicConditions||[]).filter(c=>c!=='Ninguna').length ? `<p class="text-xs text-orange-600 font-medium">Condiciones: ${esc(pet.chronicConditions.join(', '))}</p>` : ''}
         </div>
 
         ${vet.name ? `
         <div class="mb-4">
           <h5 class="font-semibold text-gray-700 text-sm mb-2">Veterinario</h5>
-          <p class="text-sm text-gray-600">${vet.name}${vet.clinic ? ` · ${vet.clinic}` : ''}</p>
-          ${vet.phone ? `<p class="text-xs text-gray-400 flex items-center gap-1">${icon('phone','w-3 h-3')} ${vet.phone}</p>` : ''}
-          ${vet.email ? `<p class="text-xs text-gray-400 flex items-center gap-1">${icon('mail','w-3 h-3')} ${vet.email}</p>` : ''}
+          <p class="text-sm text-gray-600">${esc(vet.name)}${vet.clinic ? ` · ${esc(vet.clinic)}` : ''}</p>
+          ${vet.phone ? `<p class="text-xs text-gray-400 flex items-center gap-1">${icon('phone','w-3 h-3')} ${esc(vet.phone)}</p>` : ''}
+          ${vet.email ? `<p class="text-xs text-gray-400 flex items-center gap-1">${icon('mail','w-3 h-3')} ${esc(vet.email)}</p>` : ''}
         </div>` : ''}
 
         ${activeVaccines.length ? `
         <div class="mb-4">
           <h5 class="font-semibold text-gray-700 text-sm mb-2">Vacunas vigentes</h5>
           <div class="space-y-1">
-            ${activeVaccines.map(v => `<div class="text-xs bg-blue-50 rounded-lg p-2"><span class="font-medium">${v.name}</span> · Próxima: ${formatDate(v.nextDate)}</div>`).join('')}
+            ${activeVaccines.map(v => `<div class="text-xs bg-blue-50 rounded-lg p-2"><span class="font-medium">${esc(v.name)}</span> · Próxima: ${formatDate(v.nextDate)}</div>`).join('')}
           </div>
         </div>` : ''}
 
@@ -4538,7 +4556,7 @@ function exportPetRecord(petId) {
         <div class="mb-4">
           <h5 class="font-semibold text-gray-700 text-sm mb-2">Medicamentos activos</h5>
           <div class="space-y-1">
-            ${activeMeds.map(m => `<div class="text-xs bg-green-50 rounded-lg p-2"><span class="font-medium">${m.name}</span> · ${m.dose} · ${m.frequency}</div>`).join('')}
+            ${activeMeds.map(m => `<div class="text-xs bg-green-50 rounded-lg p-2"><span class="font-medium">${esc(m.name)}</span> · ${esc(m.dose)} · ${esc(m.frequency)}</div>`).join('')}
           </div>
         </div>` : ''}
 
@@ -4546,7 +4564,7 @@ function exportPetRecord(petId) {
         <div class="mb-4">
           <h5 class="font-semibold text-gray-700 text-sm mb-2">Últimos eventos clínicos</h5>
           <div class="space-y-1">
-            ${lastHistory.map(h => `<div class="text-xs bg-gray-50 rounded-lg p-2"><span class="font-medium">${formatDate(h.date)}</span> · ${h.title}${h.doctor ? ` · ${h.doctor}` : ''}</div>`).join('')}
+            ${lastHistory.map(h => `<div class="text-xs bg-gray-50 rounded-lg p-2"><span class="font-medium">${formatDate(h.date)}</span> · ${esc(h.title)}${h.doctor ? ` · ${esc(h.doctor)}` : ''}</div>`).join('')}
           </div>
         </div>` : ''}
 
@@ -4892,7 +4910,7 @@ function openEditVaccineModal(petId, vaccineId) {
           </select>
         </div>
         <div class="grid grid-cols-2 gap-3">
-          <div><label class="form-label">Código / Lote</label><input id="ev-code" value="${v.code||''}" class="input-field" /></div>
+          <div><label class="form-label">Código / Lote</label><input id="ev-code" value="${esc(v.code||'')}" class="input-field" /></div>
           <div><label class="form-label">Fecha aplicación *</label><input id="ev-date" type="date" required value="${v.date||''}" class="input-field" /></div>
         </div>
         <div class="grid grid-cols-2 gap-3">
@@ -4972,7 +4990,7 @@ function openEditDewormModal(petId, dewormId) {
       <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">${icon('pencil','w-5 h-5')} Editar Desparasitación</h3>
       <form onsubmit="saveEditDeworming(event,'${petId}','${dewormId}')" class="space-y-3">
         <div class="grid grid-cols-2 gap-3">
-          <div><label class="form-label">Producto *</label><input id="edw-product" required value="${d.product||''}" class="input-field" /></div>
+          <div><label class="form-label">Producto *</label><input id="edw-product" required value="${esc(d.product||'')}" class="input-field" /></div>
           <div><label class="form-label">Tipo</label>
             <select id="edw-type" class="input-field">
               ${['Interna','Externa','Ambas'].map(t => `<option ${t===d.type?'selected':''}>${t}</option>`).join('')}
@@ -4983,7 +5001,7 @@ function openEditDewormModal(petId, dewormId) {
               ${['Comprimido','Pipeta','Collar','Spray','Jarabe','Inyección'].map(f => `<option ${f===d.format?'selected':''}>${f}</option>`).join('')}
             </select>
           </div>
-          <div><label class="form-label">Dosis</label><input id="edw-dose" value="${d.dose||''}" class="input-field" /></div>
+          <div><label class="form-label">Dosis</label><input id="edw-dose" value="${esc(d.dose||'')}" class="input-field" /></div>
           <div><label class="form-label">Fecha *</label><input id="edw-date" type="date" required value="${d.date||''}" class="input-field" /></div>
           <div><label class="form-label">Periodicidad</label>
             <select id="edw-period" class="input-field">
@@ -5062,7 +5080,7 @@ function openEditMedModal(petId, medId) {
     <div class="modal-box p-4 sm:p-6">
       <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">${icon('pencil','w-5 h-5')} Editar Tratamiento</h3>
       <form onsubmit="saveEditMedication(event,'${petId}','${medId}')" class="space-y-3">
-        <div><label class="form-label">Medicamento *</label><input id="em-name" required value="${m.name||''}" class="input-field" /></div>
+        <div><label class="form-label">Medicamento *</label><input id="em-name" required value="${esc(m.name||'')}" class="input-field" /></div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="form-label">Dosis</label><input id="em-dose-val" type="number" step="0.1" value="${m.doseVal||''}" class="input-field" /></div>
           <div><label class="form-label">Unidad</label>
@@ -5181,17 +5199,17 @@ function openEditHistoryModal(petId, histId) {
       <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">${icon('pencil','w-5 h-5')} Editar evento clínico</h3>
       <form onsubmit="saveEditHistory(event,'${petId}','${histId}')" class="space-y-3">
         <div class="grid grid-cols-2 gap-3">
-          <div class="col-span-2"><label class="form-label">Título *</label><input id="eh-title" required value="${h.title||''}" class="input-field" /></div>
+          <div class="col-span-2"><label class="form-label">Título *</label><input id="eh-title" required value="${esc(h.title||'')}" class="input-field" /></div>
           <div><label class="form-label">Tipo</label>
             <select id="eh-type" class="input-field">
               ${['Cirugía','Esterilización','Procedimiento','Diagnóstico','Otro'].map(t => `<option ${t===h.type?'selected':''}>${t}</option>`).join('')}
             </select>
           </div>
           <div><label class="form-label">Fecha *</label><input id="eh-date" type="date" required value="${h.date||''}" class="input-field" /></div>
-          <div><label class="form-label">Médico</label><input id="eh-doctor" value="${h.doctor||''}" placeholder="Dr. García" class="input-field" /></div>
-          <div><label class="form-label">Clínica</label><input id="eh-clinic" value="${h.clinic||''}" placeholder="Clínica Vet." class="input-field" /></div>
+          <div><label class="form-label">Médico</label><input id="eh-doctor" value="${esc(h.doctor||'')}" placeholder="Dr. García" class="input-field" /></div>
+          <div><label class="form-label">Clínica</label><input id="eh-clinic" value="${esc(h.clinic||'')}" placeholder="Clínica Vet." class="input-field" /></div>
           <div class="col-span-2"><label class="form-label">Costo (CLP)</label><input id="eh-cost" type="number" min="0" value="${h.cost||''}" class="input-field" /></div>
-          <div class="col-span-2"><label class="form-label">Notas</label><textarea id="eh-notes" rows="3" class="input-field resize-none">${h.notes||''}</textarea></div>
+          <div class="col-span-2"><label class="form-label">Notas</label><textarea id="eh-notes" rows="3" class="input-field resize-none">${esc(h.notes||'')}</textarea></div>
         </div>
         ${(h.files||[]).length > 0 ? `
         <div>
@@ -5199,7 +5217,7 @@ function openEditHistoryModal(petId, histId) {
           <div class="flex flex-wrap gap-2 mt-1">
             ${h.files.map((f,fi) => `
               <div class="flex items-center gap-1 px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600">
-                ${icon('paperclip','w-3 h-3 inline align-text-bottom')} ${f.name}
+                ${icon('paperclip','w-3 h-3 inline align-text-bottom')} ${esc(f.name)}
                 <button type="button" onclick="removeHistoryFile('${petId}','${histId}',${fi})" class="ml-1 text-red-400 hover:text-red-600">✕</button>
               </div>`).join('')}
           </div>
@@ -5274,7 +5292,7 @@ function openInviteTutor2Modal(petId) {
   openModal(`
     <div class="modal-box p-4 sm:p-6">
       <h3 class="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">${icon('users','w-5 h-5')} Invitar Segundo Tutor</h3>
-      <p class="text-sm text-gray-500 mb-4">El invitado recibirá un correo para crear su cuenta y acceder a <strong>${pet.name}</strong>.</p>
+      <p class="text-sm text-gray-500 mb-4">El invitado recibirá un correo para crear su cuenta y acceder a <strong>${esc(pet.name)}</strong>.</p>
       <form onsubmit="sendTutor2Invite(event,'${petId}')" class="space-y-3">
         <div><label class="form-label">Nombre del tutor *</label><input id="t2-inv-name" required placeholder="Nombre completo" class="input-field" /></div>
         <div><label class="form-label">Email *</label><input id="t2-inv-email" type="email" required placeholder="correo@ejemplo.com" class="input-field" /></div>
@@ -5494,7 +5512,7 @@ function viewAdmin() {
                     const plan = u.plan || 'free';
                     const pColor = planColors[plan] || planColors.free;
                     const pLbl   = planLabel[plan] || plan;
-                    return '<tr class="hover:bg-gray-50 transition-colors"><td class="px-5 py-3"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-brand-gradient flex items-center justify-center text-white text-xs font-bold flex-shrink-0">'+((u.name||'?')[0].toUpperCase())+'</div><div><div class="font-medium text-gray-900">'+(u.name||'—')+'</div>'+(u.is_admin?'<span class="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-semibold">ADMIN</span>':'')+'</div></div></td><td class="px-4 py-3 text-gray-500 hidden md:table-cell">'+(u.email||'—')+'</td><td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full text-xs font-semibold '+pColor+'">'+pLbl+'</span></td><td class="px-4 py-3 text-gray-500 hidden md:table-cell">'+petCount+'</td><td class="px-4 py-3 text-gray-400 hidden md:table-cell">'+(u.created_at?new Date(u.created_at).toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit',year:'numeric'}):'—')+'</td><td class="px-4 py-3"><button onclick="openChangePlanModal(\''+u.id+'\',\''+((u.name||'').replace(/'/g,"\\'"))+'\',\''+plan+'\')" class="text-xs px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100 font-medium transition-colors">Cambiar plan</button></td></tr>';
+                    return '<tr class="hover:bg-gray-50 transition-colors"><td class="px-5 py-3"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-brand-gradient flex items-center justify-center text-white text-xs font-bold flex-shrink-0">'+esc((u.name||'?')[0].toUpperCase())+'</div><div><div class="font-medium text-gray-900">'+esc(u.name||'—')+'</div>'+(u.is_admin?'<span class="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-semibold">ADMIN</span>':'')+'</div></div></td><td class="px-4 py-3 text-gray-500 hidden md:table-cell">'+esc(u.email||'—')+'</td><td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full text-xs font-semibold '+pColor+'">'+pLbl+'</span></td><td class="px-4 py-3 text-gray-500 hidden md:table-cell">'+petCount+'</td><td class="px-4 py-3 text-gray-400 hidden md:table-cell">'+(u.created_at?new Date(u.created_at).toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit',year:'numeric'}):'—')+'</td><td class="px-4 py-3"><button onclick="openChangePlanModal(\''+u.id+'\',\''+esc(u.name||'')+'\',\''+plan+'\')" class="text-xs px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100 font-medium transition-colors">Cambiar plan</button></td></tr>';
                   }).join('')}
             </tbody>
           </table>
@@ -5534,7 +5552,7 @@ async function openChangePlanModal(userId, userName, currentPlan) {
     { id:'pro',    label:'Pro',     desc:'$9.990/mes' },
     { id:'clinic', label:'Clínica', desc:'$29.990/mes' },
   ];
-  openModal('<div class="modal-box p-5"><h3 class="text-lg font-bold text-gray-900 mb-1">Cambiar plan</h3><p class="text-sm text-gray-500 mb-4">Usuario: <strong>'+userName+'</strong></p><div class="space-y-2 mb-5">'+plans.map(p=>'<label class="flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all '+(p.id===currentPlan?'border-brand-400 bg-brand-50':'border-gray-100 hover:border-gray-200')+'"><input type="radio" name="new-plan" value="'+p.id+'" '+(p.id===currentPlan?'checked':'')+' class="accent-brand-600"><div class="flex-1"><div class="font-semibold text-sm text-gray-900">'+p.label+'</div><div class="text-xs text-gray-400">'+p.desc+'</div></div></label>').join('')+'</div><div class="flex gap-3"><button onclick="closeModal()" class="btn-secondary flex-1">Cancelar</button><button onclick="applyPlanChange(\''+userId+'\')" class="btn-primary flex-1">Guardar</button></div></div>');
+  openModal('<div class="modal-box p-5"><h3 class="text-lg font-bold text-gray-900 mb-1">Cambiar plan</h3><p class="text-sm text-gray-500 mb-4">Usuario: <strong>'+esc(userName)+'</strong></p><div class="space-y-2 mb-5">'+plans.map(p=>'<label class="flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all '+(p.id===currentPlan?'border-brand-400 bg-brand-50':'border-gray-100 hover:border-gray-200')+'"><input type="radio" name="new-plan" value="'+p.id+'" '+(p.id===currentPlan?'checked':'')+' class="accent-brand-600"><div class="flex-1"><div class="font-semibold text-sm text-gray-900">'+p.label+'</div><div class="text-xs text-gray-400">'+p.desc+'</div></div></label>').join('')+'</div><div class="flex gap-3"><button onclick="closeModal()" class="btn-secondary flex-1">Cancelar</button><button onclick="applyPlanChange(\''+userId+'\')" class="btn-primary flex-1">Guardar</button></div></div>');
 }
 
 async function applyPlanChange(userId) {
