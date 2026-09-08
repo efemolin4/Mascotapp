@@ -3940,6 +3940,11 @@ function tabSeguimiento(pet) {
       ${hasWeight ? `
         <canvas id="weight-chart-${pet.id}" height="180"></canvas>
         <div class="mt-2 text-xs text-gray-400 text-center">Últimas ${Math.min(history.length, 12)} mediciones</div>
+      ` : pet.weightKg ? `
+        <div class="text-center py-6">
+          <div class="text-2xl font-bold text-gray-800">${pet.weightKg} kg${pet.weightGr ? ` ${pet.weightGr} gr` : ''}</div>
+          <p class="text-sm text-gray-400 mt-1">Peso registrado en la ficha de ${pet.name} — aún no tiene historial de mediciones</p>
+        </div>
       ` : `
         <div class="text-center py-6">
           <div class="mb-2 flex justify-center text-gray-300">${icon('weight','w-10 h-10')}</div>
@@ -4153,7 +4158,14 @@ function setBCS(petId, score) {
 
 // ---- MODAL: Peso ----
 function openWeightModal(petId) {
+  const pet = state.pets.find(p => p.id === petId);
   const today = todayStr();
+  // Precarga con la última medición del historial o, si todavía no hay
+  // ninguna, con el peso cargado en la ficha general — así "Registrar peso"
+  // es actualizar un valor conocido en vez de partir de cero.
+  const last = pet?.weightHistory?.length ? [...pet.weightHistory].sort((a,b)=>b.date>a.date?1:-1)[0] : null;
+  const prevKg = last?.kg ?? pet?.weightKg ?? '';
+  const prevGr = last?.gr ?? pet?.weightGr ?? '';
   openModal(`
     <div class="modal-box p-4 sm:p-6">
       <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">${icon('weight','w-5 h-5')} Registrar peso</h3>
@@ -4165,13 +4177,14 @@ function openWeightModal(petId) {
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="form-label">Kg *</label>
-            <input id="wt-kg" type="number" required min="0" step="0.1" placeholder="Ej: 12" class="input-field" />
+            <input id="wt-kg" type="number" required min="0" step="0.1" value="${prevKg}" placeholder="Ej: 12" class="input-field" />
           </div>
           <div>
             <label class="form-label">Gramos (0-999)</label>
-            <input id="wt-gr" type="number" min="0" max="999" step="1" placeholder="Ej: 500" class="input-field" />
+            <input id="wt-gr" type="number" min="0" max="999" step="1" value="${prevGr}" placeholder="Ej: 500" class="input-field" />
           </div>
         </div>
+        ${!pet?.weightHistory?.length && pet?.weightKg ? `<p class="text-xs text-gray-400 -mt-1">Precargado con el peso de la ficha general — ajústalo si cambió</p>` : ''}
         <div class="flex gap-3 pt-2">
           <button type="button" onclick="closeModal()" class="btn-secondary flex-1">Cancelar</button>
           <button type="submit" class="btn-primary flex-1">Guardar</button>
