@@ -126,6 +126,21 @@ function saveState() {
 
 function isDemoUser() { return !state.user?.id; }
 
+// Un segundo tutor invitado con permiso "Solo lectura" (pet_access.role === 'viewer')
+// no debería poder editar/eliminar nada de la mascota. Esto es un freno del lado
+// del cliente para la UI normal, no reemplaza una política RLS por tabla — eso
+// sigue pendiente de verificar/agregar en Supabase para bloquear el acceso real.
+function canEditPet(pet) {
+  if (!pet) return true;
+  return pet.myRole !== 'viewer';
+}
+
+function blockIfReadOnly(pet) {
+  if (canEditPet(pet)) return false;
+  showToast('Tienes acceso de solo lectura a esta mascota', 'error');
+  return true;
+}
+
 async function loadDataFromSupabase() {
   if (!state.user?.id) return;
   try {
@@ -172,7 +187,7 @@ async function loadDataFromSupabase() {
       const pet = row.pets;
       const pid = pet.id;
       return {
-        id: pid,
+        id: pid, myRole: row.role || 'owner',
         name: pet.name, species: pet.species, breed: pet.breed,
         dateOfBirth: pet.date_of_birth, sex: pet.sex, color: pet.color,
         reproductiveStatus: pet.reproductive_status, chipNumber: pet.microchip,
@@ -1437,9 +1452,9 @@ function tabGeneral(pet) {
       <div class="bg-white rounded-2xl shadow-sm p-5">
         <div class="flex items-center justify-between mb-3">
           <h3 class="font-semibold text-gray-700">Segundo Tutor</h3>
-          ${pet.tutor2?.name
+          ${(!pet.myRole || pet.myRole === 'owner') ? (pet.tutor2?.name
             ? `<button onclick="removeTutor2('${pet.id}')" class="text-xs text-red-500 hover:underline">${pet.tutor2.pending ? 'Cancelar invitación' : 'Quitar tutor'}</button>`
-            : `<button onclick="openInviteTutor2Modal('${pet.id}')" class="btn-primary text-xs">+ Invitar</button>`}
+            : `<button onclick="openInviteTutor2Modal('${pet.id}')" class="btn-primary text-xs">+ Invitar</button>`) : ''}
         </div>
         ${pet.tutor2?.name
           ? `<div class="flex items-center gap-3">
@@ -2449,11 +2464,14 @@ function openEventModal(dateStr = '') {
           </div>
           <div><label class="form-label">Fecha *</label><input id="ev-date" type="date" required value="${dateStr}" class="input-field" /></div>
         </div>
-        <div><label class="form-label">Mascota</label>
-          <select id="ev-pet" class="input-field">
-            <option value="">Sin mascota</option>
-            ${pets.map(p => `<option>${p.name}</option>`).join('')}
-          </select>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="form-label">Hora</label><input id="ev-time" type="time" class="input-field" /></div>
+          <div><label class="form-label">Mascota</label>
+            <select id="ev-pet" class="input-field">
+              <option value="">Sin mascota</option>
+              ${pets.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+            </select>
+          </div>
         </div>
         <div><label class="form-label">Notas</label><textarea id="ev-notes" rows="2" class="input-field resize-none" placeholder="Detalles del evento..."></textarea></div>
         <div class="flex gap-3 pt-2">
@@ -2485,7 +2503,7 @@ function openExpenseModal() {
           <div><label class="form-label">Mascota</label>
             <select id="ex-pet" class="input-field">
               <option value="">General</option>
-              ${pets.map(p => `<option>${p.name}</option>`).join('')}
+              ${pets.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -2819,9 +2837,15 @@ async function savePet() {
   };
   const { data: petRow, error } = await sb.from('pets').insert(petData).select().single();
   if (error) { showToast('Error al guardar mascota', 'error'); console.error(error); return; }
-  await sb.from('pet_access').insert({ pet_id: petRow.id, user_id: state.user.id, role: 'owner' });
+  const { error: accessError } = await sb.from('pet_access').insert({ pet_id: petRow.id, user_id: state.user.id, role: 'owner' });
+  if (accessError) {
+    // Sin esta fila la mascota queda huérfana (invisible en la próxima carga,
+    // ver loadDataFromSupabase) — mejor deshacer el insert que dejarla a medias.
+    await sb.from('pets').delete().eq('id', petRow.id);
+    showToast('Error al guardar mascota', 'error'); console.error(accessError); return;
+  }
   const pet = {
-    ...d, id: petRow.id,
+    ...d, id: petRow.id, myRole: 'owner',
     vaccines: [], deworming: [], medications: [], clinicalHistory: [],
     personalityTags: d.personalityTags || [], allergies: d.allergies || [],
     chronicConditions: d.chronicConditions || [], activityLevel: d.activityLevel || 2,
@@ -2936,6 +2960,8 @@ async function deletePet(petId) {
   const pet = state.pets.find(p => p.id === petId);
   const hasTwoTutors = pet?.tutor2?.name;
   if (hasTwoTutors) {
+    // Salir de una mascota compartida es una acción sobre el propio acceso, no
+    // una edición de la mascota — se permite incluso con rol de solo lectura.
     if (!isDemoUser()) {
       await sb.from('invitations').delete().eq('pet_id', petId);
       // Quita solo el acceso del usuario actual — el otro tutor conserva el suyo.
@@ -2945,6 +2971,7 @@ async function deletePet(petId) {
     state.pets = state.pets.filter(p => p.id !== petId);
     showToast(`${pet.name} eliminada de tu perfil`, 'success');
   } else {
+    if (blockIfReadOnly(pet)) return;
     if (!isDemoUser()) {
       const { error } = await sb.from('pets').delete().eq('id', petId);
       if (error) { showToast('Error al eliminar', 'error'); return; }
@@ -2959,6 +2986,7 @@ async function deletePet(petId) {
 async function saveEditPet(petId) {
   const p = state.pets.find(x => x.id === petId);
   if (!p) return;
+  if (blockIfReadOnly(p)) return;
   const g = id => document.getElementById(id)?.value;
   const name = g('ep-name') || p.name;
   const species = g('ep-species') || p.species;
@@ -2998,6 +3026,7 @@ async function saveVaccine(e, petId) {
   e.preventDefault();
   const pet = state.pets.find(p => p.id === petId);
   if (!pet) return;
+  if (blockIfReadOnly(pet)) return;
   const g = id => document.getElementById(id)?.value;
   const date = g('v-date'), period = g('v-period');
   const nextDate = period ? addMonths(date, parseFloat(period)) : '';
@@ -3023,6 +3052,7 @@ async function saveVaccine(e, petId) {
 
 async function deleteVaccine(petId, vId) {
   const pet = state.pets.find(p => p.id === petId);
+  if (blockIfReadOnly(pet)) return;
   await sb.from('vaccines').delete().eq('id', vId);
   if (pet) { pet.vaccines = pet.vaccines.filter(v => v.id !== vId); render(); }
 }
@@ -3031,6 +3061,7 @@ async function saveDeworming(e, petId) {
   e.preventDefault();
   const pet = state.pets.find(p => p.id === petId);
   if (!pet) return;
+  if (blockIfReadOnly(pet)) return;
   const g = id => document.getElementById(id)?.value;
   const date = g('d-date'), period = g('d-period'), format = g('d-format');
   const nextDate = period ? addMonths(date, parseFloat(period)) : '';
@@ -3060,6 +3091,7 @@ async function saveDeworming(e, petId) {
 
 async function deleteDeworming(petId, dId) {
   const pet = state.pets.find(p => p.id === petId);
+  if (blockIfReadOnly(pet)) return;
   await sb.from('dewormings').delete().eq('id', dId);
   if (pet) { pet.deworming = pet.deworming.filter(d => d.id !== dId); render(); }
 }
@@ -3068,6 +3100,7 @@ async function saveMedication(e, petId) {
   e.preventDefault();
   const pet = state.pets.find(p => p.id === petId);
   if (!pet) return;
+  if (blockIfReadOnly(pet)) return;
   const g = id => document.getElementById(id)?.value;
   const name = g('m-name'), doseVal = g('m-dose-val'), doseUnit = g('m-unit');
   const freqN = g('m-freq-n'), freqUnit = g('m-freq-unit');
@@ -3106,6 +3139,7 @@ async function saveMedication(e, petId) {
 
 async function deleteMedication(petId, mId) {
   const pet = state.pets.find(p => p.id === petId);
+  if (blockIfReadOnly(pet)) return;
   if (!isDemoUser()) await sb.from('medications').delete().eq('id', mId);
   if (pet) { pet.medications = pet.medications.filter(m => m.id !== mId); render(); }
 }
@@ -3157,6 +3191,7 @@ async function saveHistory(e, petId) {
   e.preventDefault();
   const pet = state.pets.find(p => p.id === petId);
   if (!pet) return;
+  if (blockIfReadOnly(pet)) return;
   const g = id => document.getElementById(id)?.value;
   const filesInput = document.getElementById('h-files');
   const files = filesInput?.files?.length ? await readFilesAsBase64(filesInput) : [];
@@ -3181,6 +3216,7 @@ async function saveHistory(e, petId) {
 
 async function deleteHistory(petId, hId) {
   const pet = state.pets.find(p => p.id === petId);
+  if (blockIfReadOnly(pet)) return;
   if (!isDemoUser()) await sb.from('history_records').delete().eq('id', hId);
   if (pet) { pet.clinicalHistory = pet.clinicalHistory.filter(h => h.id !== hId); render(); }
 }
@@ -3382,6 +3418,14 @@ function selectMedReminder(val) {
   ['exact','15','30','60'].forEach(o => {
     const btn = document.getElementById('mr-'+o);
     if (btn) btn.className = `px-3 py-2 rounded-xl border-2 text-sm font-medium transition-all ${o===val ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-gray-200 text-gray-500 hover:border-brand-300'}`;
+  });
+}
+
+function selectEditMedReminder(val) {
+  document.getElementById('em-reminder').value = val;
+  ['exact','15','30','60'].forEach(o => {
+    const btn = document.getElementById('emr-'+o);
+    if (btn) btn.className = `py-2.5 px-2 rounded-xl border-2 text-sm font-medium transition-all text-center ${o===val ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-gray-200 text-gray-500 hover:border-brand-300'}`;
   });
 }
 
@@ -4819,6 +4863,7 @@ async function saveEditVaccine(e, petId, vaccineId) {
   const pet = state.pets.find(p => p.id === petId);
   const v = pet?.vaccines?.find(x => x.id === vaccineId);
   if (!v) return;
+  if (blockIfReadOnly(pet)) return;
   const g = id => document.getElementById(id)?.value;
   const date = g('ev-date'), period = g('ev-period');
   const name = g('ev-name'), code = g('ev-code'), cost = g('ev-cost') || null;
@@ -4861,6 +4906,11 @@ function openEditDewormModal(petId, dewormId) {
           </div>
           <div><label class="form-label">Dosis</label><input id="edw-dose" value="${d.dose||''}" class="input-field" /></div>
           <div><label class="form-label">Fecha *</label><input id="edw-date" type="date" required value="${d.date||''}" class="input-field" /></div>
+          <div><label class="form-label">Periodicidad</label>
+            <select id="edw-period" class="input-field">
+              ${PERIODICITY_OPTIONS.map(o => `<option value="${o.months}" ${String(o.months)===String(d.periodicity)?'selected':''}>${o.label}</option>`).join('')}
+            </select>
+          </div>
           <div><label class="form-label">Costo (CLP)</label><input id="edw-cost" type="number" min="0" value="${d.cost||''}" class="input-field" /></div>
         </div>
         <div>
@@ -4902,19 +4952,23 @@ async function saveEditDeworming(e, petId, dewormId) {
   const pet = state.pets.find(p => p.id === petId);
   const d = pet?.deworming?.find(x => x.id === dewormId);
   if (!d) return;
+  if (blockIfReadOnly(pet)) return;
   const g = id => document.getElementById(id)?.value;
   const product = g('edw-product'), type = g('edw-type'), format = g('edw-format');
   const dose = g('edw-dose'), date = g('edw-date'), cost = g('edw-cost') || null;
+  const period = g('edw-period');
   const alertType = g('edw-alert'), alertDays = g('edw-alert-days') || null;
+  const nextDate = period ? addMonths(date, parseFloat(period)) : '';
   if (!isDemoUser()) {
     const { error } = await sb.from('dewormings').update({
-      product, type, format, dose, date, cost, alert_type: alertType, alert_days: alertDays
+      product, type, format, dose, date, cost, periodicity: period, next_date: nextDate,
+      alert_type: alertType, alert_days: alertDays
     }).eq('id', dewormId);
     if (error) { showToast('Error al guardar cambios', 'error'); console.error(error); return; }
   }
   d.product = product; d.type = type;
   d.format = format; d.dose = dose;
-  d.date = date; d.cost = cost;
+  d.date = date; d.cost = cost; d.periodicity = period; d.nextDate = nextDate;
   d.alertType = alertType; d.alertDays = alertDays;
   closeModal(); render();
   showToast('Desparasitación actualizada ✓', 'success');
@@ -4951,9 +5005,26 @@ function openEditMedModal(petId, medId) {
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="form-label">Fecha inicio</label><input id="em-start" type="date" value="${m.startDate||''}" class="input-field" /></div>
+          <div><label class="form-label">Hora inicio</label>
+            <select id="em-start-time" class="input-field text-center">
+              ${Array.from({length:24},(_,i)=>{const h=String(i).padStart(2,'0');return`<option value="${h}:00" ${m.startTime===`${h}:00`?'selected':''}>${h}:00</option>`;}).join('')}
+            </select>
+          </div>
           <div><label class="form-label">Días tratamiento</label><input id="em-days" type="number" min="1" value="${m.treatmentDays||''}" class="input-field" /></div>
           <div><label class="form-label">Fecha caducidad</label><input id="em-expiry" type="date" value="${m.expiry||''}" class="input-field" /></div>
           <div><label class="form-label">Costo (CLP)</label><input id="em-cost" type="number" min="0" value="${m.cost||''}" class="input-field" /></div>
+        </div>
+        <div>
+          <label class="form-label flex items-center gap-1">${icon('bell','w-3.5 h-3.5')} Recordatorio por dosis</label>
+          <div class="grid grid-cols-2 gap-2 mt-1">
+            ${[{v:'exact',l:'Horario exacto'},{v:'15',l:'15 min antes'},{v:'30',l:'30 min antes'},{v:'60',l:'60 min antes'}].map(o => `
+              <button type="button" onclick="selectEditMedReminder('${o.v}')" id="emr-${o.v}"
+                class="py-2.5 px-2 rounded-xl border-2 text-sm font-medium transition-all text-center
+                ${(m.reminder||'exact')===o.v ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-gray-200 text-gray-500 hover:border-brand-300'}">
+                ${o.l}
+              </button>`).join('')}
+          </div>
+          <input type="hidden" id="em-reminder" value="${m.reminder||'exact'}" />
         </div>
         <div class="flex items-center gap-2">
           <input type="checkbox" id="em-active" ${m.active?'checked':''} class="rounded text-brand-500" />
@@ -4984,14 +5055,16 @@ async function saveEditMedication(e, petId, medId) {
   const pet = state.pets.find(p => p.id === petId);
   const m = pet?.medications?.find(x => x.id === medId);
   if (!m) return;
+  if (blockIfReadOnly(pet)) return;
   const g = id => document.getElementById(id)?.value;
   const days = parseInt(g('em-days') || 0);
-  const startDate = g('em-start');
+  const startDate = g('em-start'), startTime = g('em-start-time');
   const name = g('em-name'), doseVal = g('em-dose-val'), doseUnit = g('em-unit');
   const freqN = g('em-freq-n'), freqUnit = g('em-freq-unit');
   const frequency = freqN ? `Cada ${freqN} ${freqUnit === 'horas' ? 'horas' : 'días'}` : '';
   const expiry = g('em-expiry') || null, cost = g('em-cost') || null;
   const stockTotal = g('em-stock-total') || null, stockUnit = g('em-stock-unit');
+  const reminder = g('em-reminder');
   const active = document.getElementById('em-active')?.checked;
   let endDate = m.endDate || null;
   if (days && startDate) {
@@ -5002,8 +5075,8 @@ async function saveEditMedication(e, petId, medId) {
     const { error } = await sb.from('medications').update({
       name, dose_val: doseVal || null, dose_unit: doseUnit,
       freq_n: freqN || null, freq_unit: freqUnit,
-      start_date: startDate, treatment_days: days || null, end_date: endDate,
-      expiry_date: expiry, cost, active, stock_qty: stockTotal, stock_unit: stockUnit
+      start_date: startDate, start_time: startTime, treatment_days: days || null, end_date: endDate,
+      expiry_date: expiry, cost, active, reminder, stock_qty: stockTotal, stock_unit: stockUnit
     }).eq('id', medId);
     if (error) { showToast('Error al guardar cambios', 'error'); console.error(error); return; }
   }
@@ -5011,9 +5084,9 @@ async function saveEditMedication(e, petId, medId) {
   m.doseVal = doseVal; m.doseUnit = doseUnit;
   m.dose = `${doseVal||''} ${doseUnit||''}`.trim();
   m.freqN = freqN; m.freqUnit = freqUnit; m.frequency = frequency;
-  m.startDate = startDate; m.treatmentDays = days;
+  m.startDate = startDate; m.startTime = startTime; m.treatmentDays = days;
   m.endDate = endDate;
-  m.expiry = expiry; m.cost = cost;
+  m.expiry = expiry; m.cost = cost; m.reminder = reminder;
   m.active = active; m.stockTotal = stockTotal; m.stockUnit = stockUnit;
   closeModal(); render();
   showToast('Tratamiento actualizado ✓', 'success');
@@ -5095,6 +5168,7 @@ async function saveEditHistory(e, petId, histId) {
   const pet = state.pets.find(p => p.id === petId);
   const h = pet?.clinicalHistory?.find(x => x.id === histId);
   if (!h) return;
+  if (blockIfReadOnly(pet)) return;
   const g = id => document.getElementById(id)?.value;
   const filesInput = document.getElementById('eh-files');
   const newFiles = filesInput?.files?.length ? await readFilesAsBase64(filesInput) : [];
@@ -5208,12 +5282,22 @@ async function sendTutor2Invite(e, petId) {
 async function removeTutor2(petId) {
   const pet = state.pets.find(p => p.id === petId);
   if (!pet) return;
+  // Solo el dueño puede quitar al segundo tutor: si lo llamara el propio tutor2,
+  // `.neq('user_id', state.user.id)` de abajo borraría el acceso del DUEÑO en vez
+  // del suyo — esto asume exactamente un dueño + un tutor2, que es lo único que
+  // este modelo de datos soporta.
+  if (pet.myRole && pet.myRole !== 'owner') {
+    showToast('Solo el tutor principal puede quitar al segundo tutor', 'error');
+    return;
+  }
   if (!confirm(`¿Quitar a ${pet.tutor2?.name} como segundo tutor de ${pet.name}?`)) return;
   if (!isDemoUser()) {
-    await sb.from('invitations').delete().eq('pet_id', petId).eq('invited_email', pet.tutor2.email);
+    const { error: invError } = await sb.from('invitations').delete().eq('pet_id', petId).eq('invited_email', pet.tutor2.email);
+    if (invError) { showToast('Error al quitar el tutor', 'error'); console.error(invError); return; }
     if (!pet.tutor2.pending) {
       // Ya había aceptado la invitación: también se le quita el acceso a la mascota
-      await sb.from('pet_access').delete().eq('pet_id', petId).neq('user_id', state.user.id);
+      const { error: accessError } = await sb.from('pet_access').delete().eq('pet_id', petId).neq('user_id', state.user.id);
+      if (accessError) { showToast('Error al quitar el tutor', 'error'); console.error(accessError); return; }
     }
   }
   pet.tutor2 = null; render();
