@@ -8,9 +8,9 @@ o se rompe sin querer, no hay forma de reproducirlo a partir del repo.
 
 `schema/` guarda una **foto** (no un historial de migraciones) del estado
 real de RLS en producción — políticas por tabla y las funciones SQL que
-usan (`pet_accessible()`, `pet_editor()`). No se aplica automáticamente a
-nada; es documentación versionada para poder auditar y reconstruir el
-esquema de seguridad si hace falta.
+usan (`pet_accessible()`, `pet_editor()`, `is_admin()`). No se aplica
+automáticamente a nada; es documentación versionada para poder auditar y
+reconstruir el esquema de seguridad si hace falta.
 
 ## Cómo mantenerlo al día
 
@@ -32,11 +32,11 @@ from pg_policies
 where schemaname = 'public'
 order by tablename, policyname;
 
--- Funciones de seguridad usadas por las políticas (pet_accessible, pet_editor)
+-- Funciones de seguridad usadas por las políticas (pet_accessible, pet_editor, is_admin)
 select p.proname as function_name, pg_get_functiondef(p.oid) as definition
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
-where n.nspname = 'public' and p.proname in ('pet_accessible', 'pet_editor')
+where n.nspname = 'public' and p.proname in ('pet_accessible', 'pet_editor', 'is_admin')
 order by p.proname;
 
 -- Qué tablas tienen RLS activo (para detectar alguna que quedó sin proteger)
