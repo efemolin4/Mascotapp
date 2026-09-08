@@ -68,17 +68,17 @@ AS $function$
 $function$;
 
 -- ============================================================
--- Tablas con RLS activo pero SIN ninguna política (fail-closed)
+-- Cobertura de RLS
 -- ============================================================
--- `select relname, relrowsecurity from pg_class ...` confirma que las 20
--- tablas de public tienen RLS activo — ninguna quedó desprotegida. Dos de
--- ellas (announcements, feature_flags) no aparecen en pg_policies: tienen
--- RLS activo pero cero políticas, lo que en Postgres bloquea TODO acceso
--- vía el rol anon/authenticated (nadie puede leer ni escribir, ni
--- siquiera su propio dueño) — es el lado seguro por defecto, no una
--- vulnerabilidad. No aparecen referenciadas en ningún archivo de js/, así
--- que probablemente sean tablas creadas para una feature que nunca se
--- conectó a la app; quedan documentadas acá por si alguien las retoma.
+-- `select relname, relrowsecurity from pg_class ...` confirmó (2026-09-08)
+-- que las 18 tablas de public usadas por la app tienen RLS activo —
+-- ninguna quedó desprotegida.
+--
+-- En esa misma revisión aparecieron dos tablas más con RLS activo pero
+-- CERO políticas (announcements, feature_flags) — sin código en js/ que
+-- las referenciara, restos de alguna feature que nunca se conectó a la
+-- app. Se borraron el 2026-09-08 tras confirmar que estaban vacías (ver
+-- historial de git para el detalle).
 
 -- ============================================================
 -- Políticas por tabla
