@@ -1,5 +1,5 @@
 -- ============================================================
--- MASCOTAAPP — Foto de las políticas RLS en producción
+-- MASCOTAPP — Foto de las políticas RLS en producción
 -- ============================================================
 -- Generado a partir de las 3 queries de introspección de
 -- supabase/README.md, corridas en el SQL Editor de Supabase.

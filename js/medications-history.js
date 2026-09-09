@@ -1,5 +1,5 @@
 /* ============================================================
-   MASCOTAAPP — Tratamientos e historial clínico
+   MASCOTAPP — Tratamientos e historial clínico
    ============================================================
    Fase 2 de la modularización (ver js/utils.js para el porqué de la
    convención export + window.assign). Pestañas de la ficha, modales de

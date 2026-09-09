@@ -1,5 +1,5 @@
 /* ============================================================
-   MASCOTAAPP — Autenticación y datos de demo
+   MASCOTAPP — Autenticación y datos de demo
    ============================================================
    Fase 2 de la modularización (ver js/utils.js para el porqué de la
    convención export + window.assign). Vistas de login/registro/recuperar
@@ -16,7 +16,7 @@ export function viewLogin() {
       </div>
       <div class="relative text-center text-white">
         <div class="mb-6 flex justify-center">${icon('paw','w-20 h-20')}</div>
-        <h1 class="text-4xl font-bold mb-3">MascotaApp</h1>
+        <h1 class="text-4xl font-bold mb-3">Mascotapp</h1>
         <p class="text-lg text-purple-100 max-w-xs mx-auto">Tu compañero digital para el cuidado integral de tus mascotas</p>
         <div class="mt-8 grid grid-cols-2 gap-4 text-sm">
           <div class="bg-white/10 rounded-xl p-3"><div class="mb-1 flex justify-center">${icon('clipboard','w-6 h-6')}</div>Ficha médica completa</div>
@@ -33,7 +33,7 @@ export function viewLogin() {
           <div class="lg:hidden flex items-center gap-3 mb-6">
             <div class="w-10 h-10 rounded-2xl bg-brand-gradient flex items-center justify-center text-white font-black text-sm">MA</div>
             <div>
-              <div class="font-bold text-gray-900 leading-none">MascotaApp</div>
+              <div class="font-bold text-gray-900 leading-none">Mascotapp</div>
               <div class="text-xs text-brand-400 mt-0.5">Tu compañero digital</div>
             </div>
           </div>
@@ -80,7 +80,7 @@ export function viewRegister() {
       <div class="text-center mb-5">
         <div class="inline-flex w-12 h-12 rounded-2xl bg-brand-gradient items-center justify-center text-white font-black mb-3">MA</div>
         <h2 class="text-2xl font-bold text-gray-900">Crear cuenta</h2>
-        <p class="text-sm text-gray-500 mt-1">Únete a MascotaApp gratis</p>
+        <p class="text-sm text-gray-500 mt-1">Únete a Mascotapp gratis</p>
       </div>
       <div class="bg-white rounded-2xl shadow-sm p-5 space-y-4">
         <form onsubmit="handleRegister(event)" class="space-y-3">
@@ -185,7 +185,7 @@ export async function login() {
   if (!email || !pass) { showToast('Completa todos los campos', 'error'); return; }
 
   // Demo mode — bypass Supabase
-  if (email === 'demo@mascotaapp.cl') {
+  if (email === 'demo@mascotapp.cl') {
     loadDemoAndLogin(); return;
   }
 
@@ -273,7 +273,7 @@ export async function logout() {
     currentView: 'login', currentPetId: null, currentTab: 'general',
     addPetStep: 1, newPetData: {}, pages: {} };
   Object.assign(state, fresh);
-  localStorage.removeItem('mascotaapp_v3');
+  localStorage.removeItem('mascotapp_v3');
   history.replaceState(null, '', ROUTE_PATHS.login);
   render();
 }
@@ -558,7 +558,7 @@ export function loadDemoAndLogin(silent) {
   ];
 
   const demoState = {
-    user: { name: 'Felipe Molina', email: 'demo@mascotaapp.cl' },
+    user: { name: 'Felipe Molina', email: 'demo@mascotapp.cl' },
     isLoggedIn: true,
     pets: [greta, luna, coco],
     events,

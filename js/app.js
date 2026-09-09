@@ -1,5 +1,5 @@
 /* ============================================================
-   MASCOTAAPP — Aplicación Principal
+   MASCOTAPP — Aplicación Principal
    ============================================================ */
 
 // ---- SUPABASE CONFIG ----
@@ -112,7 +112,7 @@ window.chartInstance = null;
 
 export function loadState() {
   try {
-    const s = localStorage.getItem('mascotaapp_v3');
+    const s = localStorage.getItem('mascotapp_v3');
     if (s) {
       const p = JSON.parse(s);
       state.user = p.user || null;
@@ -135,7 +135,7 @@ export function loadState() {
 
 export function saveState() {
   try {
-    localStorage.setItem('mascotaapp_v3', JSON.stringify({
+    localStorage.setItem('mascotapp_v3', JSON.stringify({
       user: state.user, isLoggedIn: state.isLoggedIn,
     }));
   } catch(e) {}
@@ -360,7 +360,7 @@ export function sidebar() {
   <aside class="hidden md:flex flex-col w-60 bg-white border-r border-gray-100 fixed inset-y-0 left-0 z-20">
     <div class="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
       <div class="w-8 h-8 bg-brand-gradient rounded-xl flex items-center justify-center text-white font-black text-xs tracking-tight">MA</div>
-      <div class="font-bold text-gray-900 text-sm leading-none">MascotaApp</div>
+      <div class="font-bold text-gray-900 text-sm leading-none">Mascotapp</div>
     </div>
     <nav class="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
       ${items.map(i => {

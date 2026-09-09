@@ -1,5 +1,5 @@
 /* ============================================================
-   MASCOTAAPP — Seguimiento y Nutrición
+   MASCOTAPP — Seguimiento y Nutrición
    ============================================================
    Fase 2 de la modularización (ver js/utils.js para el porqué de la
    convención export + window.assign). Pestaña de Seguimiento (peso,
