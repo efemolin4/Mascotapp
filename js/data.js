@@ -9,11 +9,14 @@
 async function loadDataFromSupabase() {
   if (!state.user?.id) return;
   try {
-    // Fetch profile first (is_admin, plan) — always, regardless of pets
-    const { data: profile } = await sb.from('profiles').select('is_admin, plan').eq('id', state.user.id).single();
+    // Fetch profile first (is_admin, plan, datos de contacto) — always, regardless of pets
+    const { data: profile } = await sb.from('profiles').select('is_admin, plan, phone, city, marketing_opt_in').eq('id', state.user.id).single();
     if (profile) {
       state.user.isAdmin = profile.is_admin || false;
       state.user.plan = profile.plan || 'free';
+      state.user.phone = profile.phone || '';
+      state.user.city = profile.city || '';
+      state.user.marketingOptIn = profile.marketing_opt_in || false;
       saveState();
     }
 

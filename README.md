@@ -92,7 +92,7 @@ Aplicación web progresiva (PWA) de página única para tutores de mascotas. Per
 
 | Tabla | Descripción |
 |---|---|
-| `profiles` | Perfiles de usuario (nombre, plan, is_admin) |
+| `profiles` | Perfiles de usuario (nombre, plan, is_admin, teléfono, ciudad, opt-in de promociones) |
 | `pets` | Mascotas (owner_id, especie, raza, microchip, vet) |
 | `pet_access` | Control de acceso por mascota (owner / editor / viewer) |
 | `vaccines` | Vacunas por mascota |
@@ -348,6 +348,24 @@ UPDATE public.profiles
 SET is_admin = true
 WHERE id = (SELECT id FROM auth.users WHERE email = 'tu@email.com');
 ```
+
+### Agregar columnas de contacto al perfil (2026-09-09)
+
+La vista "Mi perfil" (accesible desde la fila de usuario del sidebar en
+desktop, o el avatar de la barra superior en mobile) permite editar
+teléfono, ciudad y si el usuario quiere recibir promociones a futuro.
+Ejecuta esto una sola vez en el SQL Editor de Supabase para agregar las
+columnas que le faltan a `profiles`:
+
+```sql
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS phone text,
+  ADD COLUMN IF NOT EXISTS city text,
+  ADD COLUMN IF NOT EXISTS marketing_opt_in boolean NOT NULL DEFAULT false;
+```
+
+No hace falta tocar las políticas RLS — la política existente "Users
+manage own profile" ya cubre la fila completa, columnas nuevas incluidas.
 
 ### Corregir columnas faltantes en `vaccines` y `dewormings`
 

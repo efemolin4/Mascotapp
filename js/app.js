@@ -58,6 +58,26 @@ export const BREEDS = {
   Otro: ['Mestizo','Otro'],
 };
 
+// ---- CIUDADES DE CHILE (para el perfil del usuario) ----
+export const CHILE_REGIONS = {
+  'Arica y Parinacota': ['Arica','Putre'],
+  'Tarapacá': ['Iquique','Alto Hospicio','Pozo Almonte'],
+  'Antofagasta': ['Antofagasta','Calama','Tocopilla','Mejillones','San Pedro de Atacama'],
+  'Atacama': ['Copiapó','Vallenar','Caldera','Chañaral'],
+  'Coquimbo': ['La Serena','Coquimbo','Ovalle','Illapel','Vicuña'],
+  'Valparaíso': ['Valparaíso','Viña del Mar','Quilpué','Villa Alemana','San Antonio','Quillota','San Felipe','Los Andes','La Ligua'],
+  'Metropolitana de Santiago': ['Santiago','Providencia','Las Condes','Ñuñoa','La Reina','Vitacura','Lo Barnechea','Macul','Peñalolén','La Florida','Puente Alto','San Bernardo','Maipú','Pudahuel','Cerrillos','Estación Central','Quinta Normal','Independencia','Recoleta','Huechuraba','Conchalí','Renca','Quilicura','Colina','Melipilla','Talagante','Buin','Peñaflor','San Miguel','La Cisterna','San Joaquín','El Bosque','La Granja','La Pintana','San Ramón'],
+  "O'Higgins": ['Rancagua','Rengo','San Fernando','Santa Cruz','Pichilemu'],
+  'Maule': ['Talca','Curicó','Linares','Constitución','Cauquenes'],
+  'Ñuble': ['Chillán','Chillán Viejo','San Carlos'],
+  'Biobío': ['Concepción','Talcahuano','Los Ángeles','Coronel','San Pedro de la Paz','Chiguayante','Hualpén','Tomé','Lota'],
+  'Araucanía': ['Temuco','Padre Las Casas','Villarrica','Pucón','Angol','Victoria'],
+  'Los Ríos': ['Valdivia','La Unión','Panguipulli'],
+  'Los Lagos': ['Puerto Montt','Osorno','Castro','Ancud','Puerto Varas','Chonchi'],
+  'Aysén': ['Coyhaique','Puerto Aysén','Chile Chico'],
+  'Magallanes': ['Punta Arenas','Puerto Natales','Porvenir'],
+};
+
 // ---- PAGINACIÓN ----
 export const PAGE_SIZE = 10;
 export function getPage(key) { return ((state.pages||{})[key]) || 1; }
@@ -223,6 +243,7 @@ export const ROUTE_PATHS = {
   login: '/login', register: '/register', forgot: '/forgot', resetPassword: '/reset-password',
   dashboard: '/', pets: '/pets', addPet: '/pets/nueva',
   calendar: '/calendar', finance: '/finanzas', botiquin: '/botiquin', admin: '/admin',
+  profile: '/perfil',
 };
 export const AUTH_VIEWS = ['login', 'register', 'forgot', 'resetPassword'];
 
@@ -377,11 +398,13 @@ export function sidebar() {
     </nav>
     <div class="px-3 py-3 border-t border-gray-100">
       <div class="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-gray-50 transition-colors">
-        <div class="w-8 h-8 rounded-full bg-brand-gradient flex items-center justify-center text-white text-xs font-bold flex-shrink-0">${esc((state.user?.name||'U')[0].toUpperCase())}</div>
-        <div class="flex-1 min-w-0">
-          <div class="text-xs font-semibold text-gray-900 truncate">${esc(state.user?.name||'')}</div>
-          <div class="text-xs text-gray-400 truncate" title="${esc(state.user?.email||'')}">${esc(state.user?.email||'')}</div>
-        </div>
+        <button onclick="navigate('profile')" title="Mi perfil" class="flex items-center gap-3 flex-1 min-w-0 text-left">
+          <div class="w-8 h-8 rounded-full bg-brand-gradient flex items-center justify-center text-white text-xs font-bold flex-shrink-0">${esc((state.user?.name||'U')[0].toUpperCase())}</div>
+          <div class="flex-1 min-w-0">
+            <div class="text-xs font-semibold text-gray-900 truncate">${esc(state.user?.name||'')}</div>
+            <div class="text-xs text-gray-400 truncate" title="${esc(state.user?.email||'')}">${esc(state.user?.email||'')}</div>
+          </div>
+        </button>
         <button onclick="logout()" title="Cerrar sesión"
           class="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">${iconSVG('logout')}</svg>
@@ -389,6 +412,26 @@ export function sidebar() {
       </div>
     </div>
   </aside>`;
+}
+
+// Antes no había NINGUNA forma de llegar al perfil/logout en mobile — sidebar()
+// es hidden md:flex y bottomNav() solo trae las 5 secciones principales. Esta
+// barra chica (sticky, no fixed, para no tener que compensar su alto con
+// padding en <main>) le da al mobile un acceso equivalente al de la fila de
+// usuario del sidebar de escritorio.
+export function mobileTopBar() {
+  return `
+  <div class="md:hidden sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-gray-100 flex items-center justify-between px-4 py-2.5"
+    style="padding-top:calc(0.625rem + env(safe-area-inset-top))">
+    <div class="flex items-center gap-2">
+      <div class="w-7 h-7 bg-brand-gradient rounded-lg flex items-center justify-center text-white font-black text-[10px]">MA</div>
+      <span class="font-bold text-gray-900 text-sm">Mascotapp</span>
+    </div>
+    <button onclick="navigate('profile')" title="Mi perfil"
+      class="w-8 h-8 rounded-full bg-brand-gradient flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+      ${esc((state.user?.name||'U')[0].toUpperCase())}
+    </button>
+  </div>`;
 }
 
 export function bottomNav() {
@@ -419,6 +462,7 @@ export function appShell(content) {
   return `
   ${sidebar()}
   <div class="md:ml-60 flex flex-col min-h-screen">
+    ${mobileTopBar()}
     <main class="flex-1 pb-24 md:pb-10 px-4 py-5 md:px-8 md:py-8 max-w-6xl mx-auto w-full animate-fade-in">${content}</main>
     ${bottomNav()}
   </div>`;
@@ -630,6 +674,7 @@ export function render() {
   else if (v === 'calendar')      app.innerHTML = viewCalendar();
   else if (v === 'finance')       app.innerHTML = viewFinance();
   else if (v === 'botiquin')      app.innerHTML = viewBotiquin();
+  else if (v === 'profile')       app.innerHTML = viewProfile();
   else if (v === 'admin')        { if (state.user?.isAdmin) { loadAdminData().then(() => { app.innerHTML = viewAdmin(); }); } else navigate('dashboard', {}, { replace: true }); }
   else navigate('dashboard', {}, { replace: true });
 }
@@ -772,11 +817,11 @@ if (typeof window !== 'undefined') {
     getPage, setPage, paginate, pagerHTML, loadState, saveState, isDemoUser,
     canEditPet, blockIfReadOnly, isPremium, blockIfNotPremium, premiumUpsell, premiumUpsellCard,
     showToast, viewToPath, pathToView,
-    resolveInitialViewFromUrl, navigate, iconSVG, icon, sidebar, bottomNav,
+    resolveInitialViewFromUrl, navigate, iconSVG, icon, sidebar, bottomNav, mobileTopBar,
     appShell, pageHeader, statCard, petAvatar, emptyState, noPetsOnboarding,
     openModal, closeModal, injectStyles, render, initApp,
     sb, VACCINES_BY_SPECIES, PLAN_PET_LIMITS, PLAN_LABELS, PREMIUM_PRICE_CLP, PERIODICITY_OPTIONS,
-    BREEDS, PAGE_SIZE, defaultState, ROUTE_PATHS, AUTH_VIEWS, SYMPTOM_TAGS,
+    BREEDS, CHILE_REGIONS, PAGE_SIZE, defaultState, ROUTE_PATHS, AUTH_VIEWS, SYMPTOM_TAGS,
     ACTIVITY_LEVELS, state,
   });
 }

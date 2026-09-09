@@ -278,6 +278,107 @@ export async function logout() {
   render();
 }
 
+// ---- VISTA: MI PERFIL ----
+// Único punto de acceso a los datos de cuenta (nombre, contacto, ciudad,
+// promociones) y al upsell a Premium — se llega acá desde la fila de usuario
+// del sidebar (desktop) o el avatar de mobileTopBar() (mobile), ver js/app.js.
+export function viewProfile() {
+  const u = state.user || {};
+  return appShell(`
+    <div class="max-w-2xl mx-auto">
+      <button onclick="navigate('dashboard')" class="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-4">
+        ← Volver
+      </button>
+
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-14 h-14 rounded-full bg-brand-gradient flex items-center justify-center text-white text-xl font-bold flex-shrink-0">${esc((u.name||'U')[0].toUpperCase())}</div>
+        <div class="min-w-0">
+          <h1 class="text-lg md:text-xl font-bold text-gray-900 truncate">Mi perfil</h1>
+          <p class="text-sm text-gray-400 truncate">${esc(u.email||'')}</p>
+        </div>
+      </div>
+
+      ${!isPremium() ? `
+      <div class="bg-brand-gradient rounded-2xl p-5 md:p-6 mb-5 text-white flex flex-col sm:flex-row sm:items-center gap-4 sm:justify-between">
+        <div class="min-w-0">
+          <span class="badge bg-white/20 text-white text-xs font-bold uppercase tracking-wide">Plan Free</span>
+          <h2 class="font-bold text-base md:text-lg mt-2">Mejora a Premium</h2>
+          <p class="text-sm text-white/80 mt-1">Hasta 5 mascotas, segundo tutor, gráficos de gastos, exportar expediente y adjuntos ilimitados — ${fmtCLP(PREMIUM_PRICE_CLP)}/mes.</p>
+        </div>
+        <button onclick="showToast('Escríbenos para mejorar tu plan a Premium', '')"
+          class="btn-secondary !bg-white !text-brand-700 hover:!bg-brand-50 !border-0 px-5 py-2.5 text-sm font-bold flex-shrink-0 w-full sm:w-auto">
+          Mejorar a Premium
+        </button>
+      </div>` : `
+      <div class="bg-white rounded-2xl shadow-sm p-4 md:p-5 mb-5 flex items-center gap-3">
+        <span class="badge bg-brand-100 text-brand-700 text-xs font-bold uppercase tracking-wide flex-shrink-0">Premium</span>
+        <p class="text-sm text-gray-500">Tu cuenta tiene acceso a todas las funciones.</p>
+      </div>`}
+
+      <form onsubmit="saveProfile(event)" class="bg-white rounded-2xl shadow-sm p-5 md:p-6 space-y-4">
+        <div>
+          <label class="form-label">Nombre completo</label>
+          <input id="pf-name" required value="${esc(u.name||'')}" class="input-field" />
+        </div>
+        <div>
+          <label class="form-label">Teléfono de contacto</label>
+          <input id="pf-phone" type="tel" placeholder="+56 9 1234 5678" value="${esc(u.phone||'')}" class="input-field" />
+        </div>
+        <div>
+          <label class="form-label">Ciudad</label>
+          <select id="pf-city" class="input-field">
+            <option value="">Selecciona tu ciudad</option>
+            ${Object.entries(CHILE_REGIONS).map(([region, cities]) => `
+              <optgroup label="${esc(region)}">
+                ${cities.map(c => `<option value="${esc(c)}" ${u.city===c?'selected':''}>${esc(c)}</option>`).join('')}
+              </optgroup>`).join('')}
+          </select>
+        </div>
+
+        <div class="flex items-start justify-between gap-4 p-3.5 rounded-xl bg-gray-50">
+          <div class="min-w-0">
+            <div class="text-sm font-semibold text-gray-800">Promociones personalizadas</div>
+            <div class="text-xs text-gray-500 mt-0.5">Ofertas y novedades de Mascotapp más adelante. Las alertas de salud de tus mascotas te llegan siempre, elijas lo que elijas acá.</div>
+          </div>
+          <label class="toggle-switch flex-shrink-0">
+            <input type="checkbox" id="pf-marketing" ${u.marketingOptIn ? 'checked' : ''} />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3 pt-2">
+          <button type="submit" class="btn-primary flex-1 !py-3">Guardar cambios</button>
+          <button type="button" onclick="logout()" class="btn-secondary flex-1 !py-3 !text-red-500 hover:!bg-red-50">Cerrar sesión</button>
+        </div>
+      </form>
+    </div>
+  `);
+}
+
+export async function saveProfile(e) {
+  e.preventDefault();
+  const name = document.getElementById('pf-name')?.value?.trim();
+  const phone = document.getElementById('pf-phone')?.value?.trim() || '';
+  const city = document.getElementById('pf-city')?.value || '';
+  const marketingOptIn = !!document.getElementById('pf-marketing')?.checked;
+  if (!name) { showToast('El nombre no puede estar vacío', 'error'); return; }
+
+  if (!isDemoUser()) {
+    const { error } = await sb.from('profiles')
+      .update({ name, phone, city, marketing_opt_in: marketingOptIn })
+      .eq('id', state.user.id);
+    if (error) { showToast('Error al guardar el perfil', 'error'); return; }
+  }
+
+  state.user.name = name;
+  state.user.phone = phone;
+  state.user.city = city;
+  state.user.marketingOptIn = marketingOptIn;
+  saveState();
+  showToast('Perfil actualizado', 'success');
+  render();
+}
+
 // ---- DATOS DE PRUEBA ----
 // `silent`: true cuando initApp() la reinvoca para restaurar una sesión demo
 // tras un F5 (ver ahí el comentario) — solo repuebla el estado, sin el toast
@@ -584,6 +685,6 @@ if (typeof window !== 'undefined') {
   Object.assign(window, {
     viewLogin, viewRegister, viewResetPassword, handleResetPassword, viewForgot,
     handleLogin, login, handleRegister, register, handleForgot, sendForgotEmail,
-    logout, loadDemoAndLogin,
+    logout, loadDemoAndLogin, viewProfile, saveProfile,
   });
 }
