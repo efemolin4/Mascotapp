@@ -1,5 +1,5 @@
 /* ============================================================
-   MYPETS 3.0 — Finanzas
+   MASCOTAAPP — Finanzas
    ============================================================
    Fase 2 de la modularización (ver js/utils.js para el porqué de la
    convención export + window.assign). Vista de finanzas y registro

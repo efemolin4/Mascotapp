@@ -1,5 +1,5 @@
 /* ============================================================
-   MYPETS 3.0 — Mascotas: alta, ficha, edición, eliminación, tutor2
+   MASCOTAAPP — Mascotas: alta, ficha, edición, eliminación, tutor2
    ============================================================
    Fase 2 de la modularización (ver js/utils.js para el porqué de la
    convención export + window.assign). Listado y wizard de alta de
@@ -1029,7 +1029,7 @@ export function exportPetRecord(petId) {
             <span class="font-medium">${formatDate(h.date)}</span> · ${esc(h.title)} (${esc(h.type)})${h.doctor ? ` · ${esc(h.doctor)}` : ''}${h.notes ? `<br>${esc(h.notes)}` : ''}${h.cost ? `<br>Costo: ${fmtCLP(h.cost)}` : ''}${(h.files||[]).length ? `<br>${h.files.length} archivo${h.files.length!==1?'s':''} adjunto${h.files.length!==1?'s':''}` : ''}
           </div>`))}
 
-        <p class="text-xs text-gray-300 text-right mt-4">Generado por MyPets 3.0 · ${new Date().toLocaleDateString('es-CL')}</p>
+        <p class="text-xs text-gray-300 text-right mt-4">Generado por MascotaApp · ${new Date().toLocaleDateString('es-CL')}</p>
       </div>
 
       <div class="flex gap-3 pt-4 border-t border-gray-100 mt-4">
@@ -1042,7 +1042,7 @@ export function exportPetRecord(petId) {
 // El título del documento es lo que Chrome usa como nombre de archivo por
 // defecto en "Guardar como PDF" y como encabezado impreso — sin esto,
 // tanto el PDF como el encabezado quedaban con el nombre genérico de la
-// pestaña ("MyPets 3.0 — Gestión Integral de Mascotas") en vez del nombre
+// pestaña ("MascotaApp — Gestión Integral de Mascotas") en vez del nombre
 // de la mascota.
 export function printPetRecord(petName) {
   const prevTitle = document.title;

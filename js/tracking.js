@@ -1,5 +1,5 @@
 /* ============================================================
-   MYPETS 3.0 — Seguimiento y Nutrición
+   MASCOTAAPP — Seguimiento y Nutrición
    ============================================================
    Fase 2 de la modularización (ver js/utils.js para el porqué de la
    convención export + window.assign). Pestaña de Seguimiento (peso,

@@ -1,4 +1,4 @@
-# MyPets 3.0 — Gestión Integral de Mascotas
+# MascotaApp — Gestión Integral de Mascotas
 
 Aplicación web progresiva (PWA) de página única para tutores de mascotas. Permite registrar y gestionar toda la información de salud, vacunas, medicamentos, agenda y finanzas de múltiples mascotas desde un solo lugar.
 
@@ -124,7 +124,7 @@ para la query de introspección y cómo mantenerlo al día).
 ## Estructura del proyecto
 
 ```
-MyPets-3.0/
+MascotaApp/
 ├── index.html               # Punto de entrada + CDN scripts
 ├── vercel.json               # Reescribe cualquier ruta a index.html (rutas reales en prod)
 ├── package.json               # Solo para tests (Vitest) — la app en sí no tiene build step
@@ -246,7 +246,7 @@ Repartidas entre `js/*.js` según la tabla de la sección anterior (ej.
 - **Registro** con nombre, email y contraseña
 - **Login** con persistencia de sesión (JWT)
 - **Recuperación de contraseña** por email con link seguro
-- **Modo demo** con datos precargados (`demo@mypets.cl`)
+- **Modo demo** con datos precargados (`demo@mascotaapp.cl`)
 - Sesión persistente entre recargas con `getSession()`
 
 ---
@@ -265,7 +265,7 @@ para el rol de solo lectura de un tutor compartido.
 | **Free** | $0 | 1 mascota · fichas, vacunas, desparasitaciones, tratamientos e historial clínico completos · agenda y alertas · Finanzas básicas (lista y total) · Seguimiento y Nutrición · 1 archivo adjunto por evento del historial |
 | **Premium** | $2.000/mes | 5 mascotas · todo lo de Free · compartir con un segundo tutor · Finanzas avanzada (gráficos por período y predicción de gastos) · exportar expediente en PDF · Botiquín del hogar · adjuntos ilimitados en el historial |
 
-El modo demo (`demo@mypets.cl`) siempre se ve como Premium — es una
+El modo demo (`demo@mascotaapp.cl`) siempre se ve como Premium — es una
 vitrina del producto completo, no debe sentirse limitado.
 
 ### Migración a 2 planes (2026-09-08)

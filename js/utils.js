@@ -1,5 +1,5 @@
 /* ============================================================
-   MYPETS 3.0 — Utilidades puras (fechas, formato, cálculo de estado)
+   MASCOTAAPP — Utilidades puras (fechas, formato, cálculo de estado)
    ============================================================
    Primer módulo extraído de js/app.js (2026-09-08). Ninguna de estas
    funciones se llama desde un onclick="..." del HTML generado, así que

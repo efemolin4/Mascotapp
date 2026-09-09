@@ -1,5 +1,5 @@
 /* ============================================================
-   MYPETS 3.0 — Carga de datos (Supabase → estado local)
+   MASCOTAAPP — Carga de datos (Supabase → estado local)
    ============================================================
    Fase 2 de la modularización (ver js/utils.js para el porqué de la
    convención export + window.assign). Carga de mascotas/admin desde
